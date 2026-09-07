@@ -1,0 +1,11 @@
+.godot*/
+.release_test/
+preview.png
+preview.png.import
+build/
+dist/
+export_templates/
+feature_profiles/
+script_templates/
+text_editor_themes/
+*.log
