@@ -1,56 +1,24 @@
 extends Node2D
 
-const W := 1280.0
-const H := 720.0
-const BOARD_X := 165.0
-const BOARD_Y := 150.0
-const CELL_W := 120.0
-const CELL_H := 110.0
-const ROWS := 5
-const COLS := 9
-const ZOMBIE_DPS := 100.0
-const SUNFLOWER_INTERVAL := 16.0
-const ZOMBIE_POINTS := {
-	"normal": 1,
-	"cone": 2,
-	"bucket": 3,
-	"runner": 3
-}
-
-const PLANT_DATA := {
-	"sunflower": {"name":"向日葵", "cost":50, "cool":5.0, "hp":300.0, "damage":0.0, "interval":0.0, "color":Color("#ffd84a")},
-	"pea": {"name":"豌豆射手", "cost":100, "cool":6.0, "hp":300.0, "damage":20.0, "interval":1.42, "color":Color("#70cf45")},
-	"wall": {"name":"坚果墙", "cost":50, "cool":12.0, "hp":4000.0, "damage":0.0, "interval":0.0, "color":Color("#b97942")},
-	"mine": {"name":"土豆地雷", "cost":25, "cool":15.0, "hp":300.0, "damage":1800.0, "interval":0.0, "arm_time":14.0, "color":Color("#b88148")},
-	"snow": {"name":"寒冰射手", "cost":175, "cool":9.0, "hp":300.0, "damage":25.0, "interval":1.85, "color":Color("#76dceb")},
-	"cherry": {"name":"樱桃炸弹", "cost":150, "cool":30.0, "hp":300.0, "damage":1800.0, "interval":0.72, "color":Color("#ef4b45")},
-	"yam_guard": {"name":"红薯防卫队", "cost":125, "cool":15.0, "hp":300.0, "damage":60.0, "interval":0.0, "respawn":8.0, "heal":25.0, "color":Color("#c85f3d")}
-}
-
-const PLANT_INFO := {
-	"sunflower": {"role":"资源生产", "summary":"周期性生产阳光，是建立防线经济的核心。", "tip":"尽早种植在后排，并用坚果墙保护。"},
-	"pea": {"role":"单线输出", "summary":"向所在行发射豌豆，持续攻击前方的僵尸。", "tip":"适合成排布置，稳定处理普通僵尸。"},
-	"wall": {"role":"前排防御", "summary":"拥有很高的生命值，可以长时间阻挡僵尸。", "tip":"放在输出植物前方，为攻击争取时间。"},
-	"mine": {"role":"埋伏爆破", "summary":"种下后需要准备，成熟时会炸毁靠近的僵尸。", "tip":"提前种在僵尸行进路线上，适合低成本处理重甲敌人。"},
-	"snow": {"role":"减速输出", "summary":"寒冰子弹会降低僵尸移动速度并造成伤害。", "tip":"每行一株即可显著延长整条防线的输出时间。"},
-	"cherry": {"role":"范围爆发", "summary":"短暂延迟后爆炸，重创附近三行内的僵尸。", "tip":"适合处理密集尸群或紧急解围。"},
-	"yam_guard": {"role":"跨行驻守", "summary":"向相邻黄土地块派出小红薯驻守；空闲时会回血，阵亡后会自动补充。", "tip":"种在第3行时，点击防卫队本体可切换上方或下方的驻守格。"}
-}
-
-const ZOMBIE_INFO := {
-	"normal": {"name":"普通僵尸", "role":"基础敌人", "hp":190, "speed":15, "summary":"行动缓慢、耐久一般，是最常见的进攻单位。", "tip":"一株持续输出植物通常可以从容应对。"},
-	"cone": {"name":"路障僵尸", "role":"强化敌人", "hp":560, "speed":15, "summary":"头顶路障提供额外防护，比普通僵尸更耐打。", "tip":"集中火力，或用寒冰射手拖延它的推进。"},
-	"bucket": {"name":"铁桶僵尸", "role":"重甲敌人", "hp":1290, "speed":15, "summary":"铁桶带来极高防护，能够承受大量远程攻击。", "tip":"利用坚果拖延，并准备樱桃炸弹快速清除。"},
-	"runner": {"name":"疾跑僵尸", "role":"快速敌人", "hp":160, "speed":35, "summary":"生命较低但移动迅速，容易突破尚未成形的防线。", "tip":"及时补齐空行，寒冰减速对它尤其有效。"},
-	"flag": {"name":"旗帜僵尸", "role":"大波先锋", "hp":190, "speed":15, "summary":"挥舞旗帜走在尸群前方，宣告一大波僵尸来袭。", "tip":"旗帜出现时应立即检查每一行的防线。"}
-}
-
-const LEVEL_DATA := {
-	1: {"world":"前院", "stage":1, "waves":10, "plants":["sunflower","pea","wall","mine"], "reward":"cherry"},
-	2: {"world":"前院", "stage":2, "waves":10, "plants":["sunflower","pea","wall","mine","cherry"], "reward":"snow"},
-	3: {"world":"前院", "stage":3, "waves":10, "plants":["sunflower","pea","wall","mine","cherry","snow"], "reward":"yam_guard"},
-	4: {"world":"荒地", "stage":1, "waves":10, "plants":["sunflower","pea","wall","mine","cherry","snow","yam_guard"], "reward":""}
-}
+const GameData := preload("res://scripts/game_data.gd")
+const WavePlanner := preload("res://scripts/wave_planner.gd")
+const Persistence := preload("res://scripts/persistence.gd")
+const AudioSynth := preload("res://scripts/audio_synth.gd")
+const W := GameData.W
+const H := GameData.H
+const BOARD_X := GameData.BOARD_X
+const BOARD_Y := GameData.BOARD_Y
+const CELL_W := GameData.CELL_W
+const CELL_H := GameData.CELL_H
+const ROWS := GameData.ROWS
+const COLS := GameData.COLS
+const ZOMBIE_DPS := GameData.ZOMBIE_DPS
+const SUNFLOWER_INTERVAL := GameData.SUNFLOWER_INTERVAL
+const ZOMBIE_POINTS := GameData.ZOMBIE_POINTS
+const PLANT_DATA := GameData.PLANT_DATA
+const PLANT_INFO := GameData.PLANT_INFO
+const ZOMBIE_INFO := GameData.ZOMBIE_INFO
+const LEVEL_DATA := GameData.LEVEL_DATA
 
 # 快捷键绑定卡槽而不是植物。以后更换出战阵容时只需修改这个列表，
 # 对应卡槽的快捷键会自动选择新的植物。
@@ -387,22 +355,7 @@ func update_spawning(delta: float) -> void:
 	spawn_clock_start = spawn_clock
 
 func build_wave_plan(level: int) -> Array:
-	var plan: Array = []
-	var total: int = LEVEL_DATA[level].waves
-	var base_budgets := [1, 1, 1, 3, 3, 3, 5, 5, 5, 15]
-	for wave_index in total:
-		var wave: Array[String] = []
-		var local_wave := wave_index % 10
-		var group_index := int(wave_index / 10)
-		var budget: int = base_budgets[local_wave]
-		# 后续每个大波组平缓加压：普通波+1分，大波+3分。
-		budget += group_index * (3 if local_wave == 9 else 1)
-		while budget > 0:
-			var kind := choose_zombie_type(level, wave_index, total, budget)
-			wave.append(kind)
-			budget -= int(ZOMBIE_POINTS[kind])
-		plan.append(wave)
-	return plan
+	return WavePlanner.build(level, rng)
 
 func spawn_small_wave(wave_index: int, wave: Array) -> void:
 	var rows := [0, 1, 2, 3, 4]
@@ -448,30 +401,6 @@ func zombie_row_score(kind: String, row: int) -> int:
 	if is_wasteland_level() and row % 2 == 1:
 		score *= 2
 	return score
-
-func choose_zombie_type(level: int, wave_index: int, total_waves: int, max_points: int) -> String:
-	var progress := float(wave_index) / maxf(float(total_waves - 1), 1.0)
-	for attempt in 8:
-		var r := rng.randf()
-		var candidate := "normal"
-		if level == 1:
-			candidate = "cone" if progress >= 0.33 and r < 0.28 else "normal"
-		elif level == 2:
-			if progress >= 0.75 and r < 0.06:
-				candidate = "bucket"
-			elif progress >= 0.25 and r < 0.38:
-				candidate = "cone"
-		elif level == 4:
-			candidate = "cone" if progress >= 0.2 and r < 0.35 else "normal"
-		elif progress >= 0.55 and r < 0.13:
-			candidate = "bucket"
-		elif progress >= 0.35 and r > 0.83:
-			candidate = "runner"
-		elif progress >= 0.2 and r < 0.42:
-			candidate = "cone"
-		if int(ZOMBIE_POINTS[candidate]) <= max_points:
-			return candidate
-	return "normal"
 
 func spawn_zombie(row: int, kind: String, at_x := 1260.0) -> void:
 	var stats: Dictionary = {
@@ -771,25 +700,7 @@ func get_sfx_stream(frequency: float, duration: float, strength: float, wave: St
 	var cache_key := sfx_cache_key(frequency, duration, strength, wave)
 	if sfx_cache.has(cache_key):
 		return sfx_cache[cache_key]
-	var sample_rate := 22050
-	var sample_count := int(sample_rate * duration)
-	var bytes := PackedByteArray()
-	bytes.resize(sample_count * 2)
-	for i in sample_count:
-		var t := float(i) / sample_rate
-		var phase := t * frequency * TAU
-		var value := sin(phase)
-		if wave == "square":
-			value = 1.0 if value >= 0.0 else -1.0
-		elif wave == "noise":
-			value = rng.randf_range(-1.0, 1.0)
-		var envelope := pow(1.0 - float(i) / sample_count, 1.8)
-		bytes.encode_s16(i * 2, int(value * envelope * strength * 32767.0))
-	var stream := AudioStreamWAV.new()
-	stream.format = AudioStreamWAV.FORMAT_16_BITS
-	stream.mix_rate = sample_rate
-	stream.stereo = false
-	stream.data = bytes
+	var stream := AudioSynth.create_sfx(frequency, duration, strength, wave, rng)
 	sfx_cache[cache_key] = stream
 	return stream
 
@@ -821,35 +732,9 @@ func play_sfx(frequency: float, duration: float, strength: float, wave := "sine"
 	player.play()
 
 func start_music() -> void:
-	var sample_rate := 22050
-	var beat_time := 0.28
-	var notes := [261.63, 329.63, 392.0, 523.25, 392.0, 329.63, 293.66, 349.23,
-		440.0, 587.33, 440.0, 349.23, 261.63, 329.63, 392.0, 329.63]
-	var sample_count := int(sample_rate * beat_time * notes.size())
-	var bytes := PackedByteArray()
-	bytes.resize(sample_count * 2)
-	for i in sample_count:
-		var t := float(i) / sample_rate
-		var note_index := mini(int(t / beat_time), notes.size() - 1)
-		var local_t := fmod(t, beat_time)
-		var frequency: float = notes[note_index]
-		var envelope := minf(local_t / 0.025, 1.0) * minf((beat_time - local_t) / 0.06, 1.0)
-		var lead := signf(sin(t * frequency * TAU)) * 0.12
-		var bass_frequency: float = notes[int(note_index / 4) * 4] * 0.5
-		var bass := sin(t * bass_frequency * TAU) * 0.11
-		var sparkle := sin(t * frequency * 2.0 * TAU) * 0.035
-		bytes.encode_s16(i * 2, int((lead + bass + sparkle) * envelope * 32767.0))
-	var stream := AudioStreamWAV.new()
-	stream.format = AudioStreamWAV.FORMAT_16_BITS
-	stream.mix_rate = sample_rate
-	stream.stereo = false
-	stream.data = bytes
-	stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
-	stream.loop_begin = 0
-	stream.loop_end = sample_count
 	music_player = AudioStreamPlayer.new()
 	add_child(music_player)
-	music_player.stream = stream
+	music_player.stream = AudioSynth.create_music()
 	update_music_volume()
 	music_player.play()
 
@@ -858,68 +743,43 @@ func update_music_volume() -> void:
 		music_player.volume_db = linear_to_db(maxf(music_volume, 0.0001))
 
 func load_settings() -> void:
-	var config := ConfigFile.new()
-	if config.load(SETTINGS_PATH) != OK:
-		return
-	music_volume = clampf(float(config.get_value("audio", "music", music_volume)), 0.0, 1.0)
-	sfx_volume = clampf(float(config.get_value("audio", "sfx", sfx_volume)), 0.0, 1.0)
-	auto_collect_sun = bool(config.get_value("game", "auto_collect", auto_collect_sun))
-	show_health_bars = bool(config.get_value("game", "show_health_bars", show_health_bars))
-	game_speed = clampf(float(config.get_value("game", "speed", game_speed)), 0.5, 3.0)
-	fullscreen_enabled = bool(config.get_value("display", "fullscreen", fullscreen_enabled))
-	# 兼容旧版本曾经写在设置文件中的主线进度。
-	unlocked_level = clampi(int(config.get_value("progress", "unlocked_level", unlocked_level)), 1, LEVEL_DATA.size())
-	for i in plant_keys.size():
-		plant_keys[i] = int(config.get_value("keys", "plant_%d" % i, plant_keys[i]))
-	shovel_key = int(config.get_value("keys", "shovel", shovel_key))
+	var loaded := Persistence.load_settings(SETTINGS_PATH, {
+		"music_volume":music_volume, "sfx_volume":sfx_volume, "auto_collect_sun":auto_collect_sun,
+		"show_health_bars":show_health_bars, "game_speed":game_speed,
+		"fullscreen_enabled":fullscreen_enabled, "unlocked_level":unlocked_level
+	}, plant_keys, shovel_key, LEVEL_DATA.size())
+	music_volume = loaded.music_volume
+	sfx_volume = loaded.sfx_volume
+	auto_collect_sun = loaded.auto_collect_sun
+	show_health_bars = loaded.show_health_bars
+	game_speed = loaded.game_speed
+	fullscreen_enabled = loaded.fullscreen_enabled
+	unlocked_level = loaded.unlocked_level
+	plant_keys = loaded.plant_keys
+	shovel_key = loaded.shovel_key
 
 func save_settings() -> void:
-	var config := ConfigFile.new()
-	config.set_value("audio", "music", music_volume)
-	config.set_value("audio", "sfx", sfx_volume)
-	config.set_value("game", "auto_collect", auto_collect_sun)
-	config.set_value("game", "show_health_bars", show_health_bars)
-	config.set_value("game", "speed", game_speed)
-	config.set_value("display", "fullscreen", fullscreen_enabled)
-	for i in plant_keys.size():
-		config.set_value("keys", "plant_%d" % i, plant_keys[i])
-	config.set_value("keys", "shovel", shovel_key)
-	config.save(SETTINGS_PATH)
+	Persistence.save_settings(SETTINGS_PATH, {
+		"music_volume":music_volume, "sfx_volume":sfx_volume, "auto_collect_sun":auto_collect_sun,
+		"show_health_bars":show_health_bars, "game_speed":game_speed,
+		"fullscreen_enabled":fullscreen_enabled, "plant_keys":plant_keys, "shovel_key":shovel_key
+	})
 
 func load_save_game() -> void:
-	var config := ConfigFile.new()
-	if config.load(SAVE_PATH) != OK:
-		return
-	unlocked_level = clampi(int(config.get_value("campaign","unlocked_level",unlocked_level)),1,LEVEL_DATA.size())
-	high_score = maxi(0,int(config.get_value("campaign","high_score",high_score)))
-	campaign_completed = bool(config.get_value("campaign","completed",campaign_completed))
-	# 三关版本的“已通关”存档在新增荒地后，应继续解锁新关而非误判整条主线完成。
-	if campaign_completed and unlocked_level < LEVEL_DATA.size():
-		unlocked_level = LEVEL_DATA.size()
-		campaign_completed = false
-		config.set_value("campaign","unlocked_level",unlocked_level)
-		config.set_value("campaign","completed",false)
-		config.save(SAVE_PATH)
-	saved_loadouts.clear()
-	for level in range(1,LEVEL_DATA.size()+1):
-		var raw_loadout: Array = config.get_value("loadouts","level_%d"%level,[])
-		var valid_loadout: Array[String] = []
-		for value in raw_loadout:
-			var kind := String(value)
-			if kind in LEVEL_DATA[level].plants and kind not in valid_loadout and valid_loadout.size() < 8:
-				valid_loadout.append(kind)
-		if not valid_loadout.is_empty(): saved_loadouts[level] = valid_loadout
+	var loaded := Persistence.load_campaign(SAVE_PATH, {
+		"unlocked_level":unlocked_level, "high_score":high_score,
+		"campaign_completed":campaign_completed
+	}, LEVEL_DATA)
+	unlocked_level = loaded.unlocked_level
+	high_score = loaded.high_score
+	campaign_completed = loaded.campaign_completed
+	saved_loadouts = loaded.saved_loadouts
 
 func save_game() -> void:
-	var config := ConfigFile.new()
-	config.set_value("save","version",1)
-	config.set_value("campaign","unlocked_level",unlocked_level)
-	config.set_value("campaign","high_score",high_score)
-	config.set_value("campaign","completed",campaign_completed)
-	for level in range(1,LEVEL_DATA.size()+1):
-		if saved_loadouts.has(level):
-			config.set_value("loadouts","level_%d"%level,saved_loadouts[level])
-	config.save(SAVE_PATH)
+	Persistence.save_campaign(SAVE_PATH, {
+		"unlocked_level":unlocked_level, "high_score":high_score,
+		"campaign_completed":campaign_completed, "saved_loadouts":saved_loadouts
+	}, LEVEL_DATA.size())
 
 func apply_saved_display_mode() -> void:
 	if fullscreen_enabled and not Engine.is_embedded_in_editor() and DisplayServer.get_name() != "headless":
