@@ -22,11 +22,11 @@ func _ready() -> void:
 		game_state = "almanac"
 		if "--zombies" in args:
 			almanac_tab = "zombies"
-			if "--charger" in args:
-				almanac_selected = ZOMBIE_INFO.keys().find("charger")
+			if "--charger" in args or "--camo" in args:
+				almanac_selected = ZOMBIE_INFO.keys().find("camo" if "--camo" in args else "charger")
 				almanac_row_offset = almanac_max_offset()
-		elif "--squash" in args:
-			almanac_selected = PLANT_DATA.keys().find("squash")
+		elif "--squash" in args or "--short-pea" in args:
+			almanac_selected = PLANT_DATA.keys().find("short_pea" if "--short-pea" in args else "squash")
 			almanac_row_offset = almanac_max_offset()
 		capture_preview.call_deferred()
 	elif "--smoke-almanac" in args:
@@ -297,6 +297,65 @@ func _ready() -> void:
 		big_wave_warning = false
 		update_spawning(0.0)
 		assert(big_wave_warning and is_equal_approx(spawn_clock,3.75),"固定卡组关卡的大波警告时间必须为普通关卡的1.5倍")
+	elif "--smoke-camo" in args:
+		assert(LEVEL_DATA[11].reward=="short_pea" and PLANT_DATA.short_pea.cost==125,
+			"荒地第八关必须奖励125阳光的矮茎豌豆")
+		equipped_plants.assign(LEVEL_DATA[12].plants.slice(0,8))
+		reset_game(12)
+		assert(wave_plan.size()==20 and level_zombie_types()==["normal","cone","runner","camo"],
+			"荒地第九关必须有两组大波和指定僵尸阵容")
+		var planned_kinds: Array[String] = []
+		for planned_wave in wave_plan:
+			for planned_kind in planned_wave:
+				assert(planned_kind in ["normal","cone","runner","camo"],"荒地第九关生成了未指定的僵尸")
+				if planned_kind not in planned_kinds: planned_kinds.append(planned_kind)
+		for required_kind in ["normal","cone","runner","camo"]:
+			assert(required_kind in planned_kinds,"荒地第九关的波次不能漏掉%s" % required_kind)
+		reset_game(13)
+		assert(wave_plan.size()==30 and level_zombie_types()==["normal","cone","bucket","kart","charger","camo"],
+			"荒地第十关必须有三个大波组和指定僵尸阵容")
+		planned_kinds.clear()
+		for planned_wave in wave_plan:
+			for planned_kind in planned_wave:
+				assert(planned_kind in ["normal","cone","bucket","kart","charger","camo"],"荒地第十关生成了未指定的僵尸")
+				if planned_kind not in planned_kinds: planned_kinds.append(planned_kind)
+		for required_kind in ["normal","cone","bucket","kart","charger","camo"]:
+			assert(required_kind in planned_kinds,"荒地第十关的波次不能漏掉%s" % required_kind)
+		reset_game(12)
+		sun_points = 999
+		place_plant("pea",2,2)
+		plants[-1].timer = 0.0
+		spawn_zombie(2,"camo",720.0)
+		var camo_test: Dictionary = zombies[-1]
+		camo_test.x = 720.0
+		assert(camo_test.hp==360.0 and camo_test.speed==10.0 and ZOMBIE_POINTS.camo==3,
+			"军迷僵尸必须具有360生命、10速度和3点分值")
+		update_plants(0.01)
+		assert(projectiles.is_empty(),"普通豌豆射手不能锁定匍匐的军迷僵尸")
+		projectiles.append({"row":2,"x":720.0,"y":cell_center(2,2).y-9.0,"speed":0.0,
+			"damage":20.0,"snow":false,"piercing":true,"hit_ids":[],"max_hits":3,"dead":false})
+		update_projectiles(0.0)
+		assert(camo_test.hp==360.0 and not projectiles[-1].dead,"仙人掌等普通射手的子弹必须从军迷僵尸上方掠过")
+		place_plant("short_pea",3,2)
+		plants[-1].timer = 0.0
+		update_plants(0.01)
+		assert(projectiles.size()==2 and projectiles[-1].get("hits_prone",false),"矮茎豌豆必须锁定匍匐目标并发射低位子弹")
+		projectiles[-1].x = camo_test.x
+		projectiles[-1].speed = 0.0
+		update_projectiles(0.0)
+		assert(camo_test.hp==340.0,"矮茎豌豆必须对军迷僵尸造成20点伤害")
+		camo_test.hp = 181.0
+		damage_zombie(camo_test,1.0)
+		update_zombies(0.0)
+		assert(camo_test.arm_lost and ZOMBIE_POINTS.camo==3,"军迷僵尸必须在180生命时断手，且占3点")
+		reset_game(12)
+		sun_points = 999
+		place_plant("slime",4,2)
+		plants[-1].timer = 0.0
+		spawn_zombie(2,"camo",cell_center(4,2).x+20.0)
+		zombies[-1].x = cell_center(4,2).x+20.0
+		update_plants(0.01)
+		assert(zombies[-1].rooted and zombies[-1].hp==340.0,"粘液多肉必须能够固定并攻击军迷僵尸")
 	elif "--smoke-shop" in args:
 		unlocked_level = maxi(unlocked_level,4)
 		money = 1800
@@ -435,6 +494,10 @@ func level_zombie_types() -> Array[String]:
 		return ["normal","cone","bucket","runner","charger"]
 	if current_level == 11:
 		return ["normal","cone"]
+	if current_level == 12:
+		return ["normal","cone","runner","camo"]
+	if current_level == 13:
+		return ["normal","cone","bucket","kart","charger","camo"]
 	if current_level >= 2: result.insert(2, "bucket")
 	if current_level >= 3: result.append("runner")
 	return result
@@ -472,6 +535,16 @@ func choose_preview_zombie() -> String:
 		return "cone" if value < 0.72 else "normal"
 	if current_level == 11:
 		return "cone" if value<0.42 else "normal"
+	if current_level == 12:
+		if value<0.22: return "camo"
+		if value<0.43: return "runner"
+		return "cone" if value<0.72 else "normal"
+	if current_level == 13:
+		if value<0.12: return "charger"
+		if value<0.24: return "kart"
+		if value<0.38: return "camo"
+		if value<0.52: return "bucket"
+		return "cone" if value<0.76 else "normal"
 	if value < 0.12: return "bucket"
 	if value < 0.28: return "runner"
 	return "cone" if value < 0.52 else "normal"
@@ -672,7 +745,7 @@ func spawn_zombie(row: int, kind: String, at_x := 1260.0) -> void:
 		"bucket":{"hp":1290.0,"speed":15.0}, "runner":{"hp":160.0,"speed":35.0},
 		"flag":{"hp":190.0,"speed":15.0}, "kart":{"hp":500.0,"speed":20.0},
 		"imp":{"hp":190.0,"speed":25.0}, "swing":{"hp":300.0,"speed":17.0},
-		"charger":{"hp":1690.0,"speed":25.0}
+		"charger":{"hp":1690.0,"speed":25.0}, "camo":{"hp":360.0,"speed":10.0}
 	}[kind]
 	zombies.append({"id":next_zombie_id,"row":row,"draw_row":float(row),"x":at_x + rng.randf_range(0.0, 70.0),"hp":stats.hp,"max_hp":stats.hp,
 		"speed":stats.speed,"kind":kind,"attack":0.0,"slow":0.0,"dead":false,"anim":rng.randf_range(0.0, 5.0),
@@ -691,12 +764,14 @@ func update_plants(delta: float) -> void:
 				if p.timer <= 0.0:
 					spawn_sun(cell_center(p.col, p.row) + Vector2(0, -25), false)
 					p.timer = SUNFLOWER_INTERVAL
-			"pea", "snow", "cactus":
-				if p.timer <= 0.0 and has_zombie_ahead(p.row, cell_center(p.col, p.row).x):
+			"pea", "snow", "cactus", "short_pea":
+				var hits_prone: bool = bool(PLANT_DATA[p.kind].get("hits_prone",false))
+				if p.timer <= 0.0 and has_zombie_ahead(p.row, cell_center(p.col, p.row).x,hits_prone):
 					projectiles.append({"row":p.row,"x":cell_center(p.col,p.row).x + 23.0,
-						"y":cell_center(p.col,p.row).y - 9.0,"speed":235.0,"damage":PLANT_DATA[p.kind].damage,
+						"y":cell_center(p.col,p.row).y + (22.0 if hits_prone else -9.0),"speed":235.0,"damage":PLANT_DATA[p.kind].damage,
 						"snow":p.kind == "snow","piercing":p.kind=="cactus","hit_ids":[],
-						"max_hits":PLANT_DATA.cactus.max_targets if p.kind=="cactus" else 1,"dead":false})
+						"max_hits":PLANT_DATA.cactus.max_targets if p.kind=="cactus" else 1,
+						"hits_prone":hits_prone,"dead":false})
 					p.timer = PLANT_DATA[p.kind].interval
 			"needle":
 				if p.timer <= 0.0:
@@ -824,9 +899,9 @@ func update_yam_minions(delta: float) -> void:
 		else:
 			minion.hp = minf(minion.max_hp, minion.hp + PLANT_DATA.yam_guard.heal * delta)
 
-func has_zombie_ahead(row: int, x: float) -> bool:
+func has_zombie_ahead(row: int, x: float, hits_prone := false) -> bool:
 	for z in zombies:
-		if not z.dead and z.row == row and z.x > x:
+		if not z.dead and z.row == row and z.x > x and (z.kind!="camo" or hits_prone):
 			return true
 	return false
 
@@ -864,7 +939,7 @@ func find_needle_target(p: Dictionary):
 	var left_edge := BOARD_X + float(p.col-column_radius)*CELL_W
 	var right_edge := BOARD_X + float(p.col+column_radius+1)*CELL_W
 	for z in zombies:
-		if z.dead or absi(int(z.row) - int(p.row)) != 1:
+		if z.dead or z.kind=="camo" or absi(int(z.row) - int(p.row)) != 1:
 			continue
 		# 上下相邻行各覆盖正对格和左右各两格，共五格。
 		if z.x < left_edge or z.x >= right_edge:
@@ -930,7 +1005,7 @@ func update_projectiles(delta: float) -> void:
 		if pr.x > W + 20: pr.dead = true
 		for z in zombies:
 			var already_hit: bool = bool(pr.get("piercing",false)) and int(z.get("id",-1)) in pr.hit_ids
-			if not pr.dead and not z.dead and not already_hit and z.row == pr.row and absf(z.x - pr.x) < 25.0:
+			if not pr.dead and not z.dead and not already_hit and z.row == pr.row and (z.kind!="camo" or pr.get("hits_prone",false)) and absf(z.x - pr.x) < 25.0:
 				damage_zombie(z,pr.damage)
 				if pr.snow and not z.dead: z.slow = 3.0
 				if pr.get("piercing",false):
@@ -965,10 +1040,12 @@ func update_zombies(delta: float) -> void:
 					play_sfx(560.0,0.16,0.18,"sweep_up")
 				else:
 					play_sfx(720.0,0.16,0.18,"sweep_down")
-		if z.kind not in ["kart","imp"] and z.hp <= 100.0 and not z.get("arm_lost", false):
+		var arm_loss_hp := 180.0 if z.kind=="camo" else 100.0
+		if z.kind not in ["kart","imp"] and z.hp <= arm_loss_hp and not z.get("arm_lost", false):
 			z.arm_lost = true
-			detached_arms.append({"pos":Vector2(z.x + 13.0, BOARD_Y + z.row * CELL_H + CELL_H/2.0 - ZOMBIE_BOARD_LIFT - 18.0),
-				"vel":Vector2(34.0,-48.0),"angle":0.0,"spin":4.8,"life":1.35,"slow":z.slow > 0.0})
+			var arm_y_offset := 20.0 if z.kind=="camo" else -18.0
+			detached_arms.append({"pos":Vector2(z.x + 13.0, BOARD_Y + z.row * CELL_H + CELL_H/2.0 - ZOMBIE_BOARD_LIFT + arm_y_offset),
+				"vel":Vector2(34.0,-48.0),"angle":0.0,"spin":4.8,"life":1.35,"slow":z.slow > 0.0,"kind":z.kind})
 		if z.kind=="kart":
 			var crushed = plant_at_zombie(z)
 			if crushed != null:

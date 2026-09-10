@@ -1,0 +1,40 @@
+{
+  "canvas": [
+    360,
+    190
+  ],
+  "origin": [
+    155,
+    100
+  ],
+  "unit": 0.45,
+  "order": [
+    "far_leg",
+    "far_boot",
+    "far_arm",
+    "torso",
+    "near_leg",
+    "near_boot",
+    "neck",
+    "near_upper_arm",
+    "near_forearm",
+    "head",
+    "jaw",
+    "cap"
+  ],
+  "parts": {
+    "far_leg": "<path d=\"M214 111 Q232 94 252 98 L287 114 L314 122 L310 140 L282 137 L252 120 L226 139 Z\" fill=\"#3f4f37\" /><path d=\"M247 103 L260 105 L265 116 L249 119 L240 113 Z\" fill=\"#a09160\" stroke=\"none\"/><path d=\"M291 119 L304 121 L299 137 L285 136 Z\" fill=\"#68754b\" stroke=\"none\"/>",
+    "far_boot": "<path d=\"M302 121 L316 120 L328 126 L338 130 Q346 132 341 141 L309 144 L302 138 Z\" fill=\"#343b32\" /><path d=\"M311 138 L340 136\" fill=\"none\" stroke=\"#77816b\" stroke-width=\"2\"/>",
+    "far_arm": "<path d=\"M127 112 L106 128 L91 141 L72 137 L61 143 L52 140 L55 134 L65 130 L81 129 L103 103 Z\" fill=\"#3f4f37\" /><path d=\"M87 129 L92 141 L76 146 L63 145 L49 151 Q44 149 48 144 L58 139 L49 141 Q44 138 50 135 L63 133 L72 133 Z\" fill=\"#7b8b6d\" /><path d=\"M105 114 L113 118 L105 130 L97 132 L94 125 Z\" fill=\"#a09160\" stroke=\"none\"/>",
+    "torso": "<path d=\"M114 104 Q127 84 155 91 L212 108 Q233 112 236 131 Q231 151 212 150 L150 145 L119 136 Q105 125 114 104 Z\" fill=\"#68754b\" /><path d=\"M122 125 Q171 145 226 135 L231 142 Q221 155 202 148 L142 144 L119 136 Z\" fill=\"#3f4f37\" stroke=\"none\"/><path d=\"M145 94 L160 96 L166 109 L156 117 L143 111 L136 101 Z\" fill=\"#a09160\" stroke=\"none\"/><path d=\"M177 102 L190 104 L187 116 L201 121 L195 132 L178 125 L174 114 Z\" fill=\"#3f4f37\" stroke=\"none\"/><path d=\"M207 111 L224 119 L220 133 L211 130 L203 121 Z\" fill=\"#a09160\" stroke=\"none\"/><path d=\"M127 113 L150 117 L146 133 L122 127 Z\" fill=\"#75805b\" /><path d=\"M127 118 L146 122\" fill=\"none\" stroke=\"#b1b188\" stroke-width=\"1.6\"/><path d=\"M205 110 L213 110 L214 148 L205 149 Z\" fill=\"#343f30\" /><path d=\"M204 126 L215 127 L214 135 L204 134 Z\" fill=\"#afaa7b\" stroke-width=\"1.6\"/>",
+    "near_leg": "<path d=\"M215 134 Q230 130 244 138 L273 155 L309 151 L319 169 L280 174 Q271 176 262 169 L224 156 Z\" fill=\"#68754b\" /><path d=\"M230 138 L244 141 L240 153 L225 155 L221 146 Z\" fill=\"#a09160\" stroke=\"none\"/><path d=\"M266 154 L277 158 L288 153 L292 169 L279 173 L265 167 Z\" fill=\"#3f4f37\" /><path d=\"M269 161 L281 165\" fill=\"none\" stroke=\"#87906a\" stroke-width=\"2\"/>",
+    "near_boot": "<path d=\"M307 151 L322 149 L329 156 L339 152 Q348 151 350 159 L350 169 Q340 176 315 176 L310 169 Z\" fill=\"#414737\" /><path d=\"M315 171 L347 167\" fill=\"none\" stroke=\"#8b9072\" stroke-width=\"2.3\"/><path d=\"M320 155 L320 165 M326 156 L326 163\" fill=\"none\" stroke=\"#a9ab89\" stroke-width=\"1.6\"/>",
+    "neck": "<path d=\"M95 106 L123 102 L129 121 L109 134 L92 124 Z\" fill=\"#7b8b6d\" />",
+    "near_upper_arm": "<path d=\"M126 110 Q117 96 107 112 L86 139 Q83 148 94 154 L108 151 L132 128 Z\" fill=\"#68754b\" /><path d=\"M109 112 L121 116 L114 127 L103 128 L100 122 Z\" fill=\"#a09160\" stroke=\"none\"/><path d=\"M88 135 L100 135 L107 143 L104 155 L92 156 L82 147 Z\" fill=\"#3f4f37\" /><path d=\"M87 144 L98 149\" fill=\"none\" stroke=\"#899471\" stroke-width=\"2\"/>",
+    "near_forearm": "<path d=\"M89 145 L99 157 L71 165 L48 162 L38 170 Q33 171 33 166 L39 159 L28 165 Q22 165 25 160 L36 151 L29 153 Q23 152 27 148 L40 144 L52 149 L72 150 Z\" fill=\"#96a183\" /><path d=\"M47 151 L44 157 M55 156 L53 161\" fill=\"none\" stroke=\"#687d56\" stroke-width=\"1.8\"/>",
+    "stump": "<path d=\"M120 106 Q133 111 130 126 L119 138 L113 131 L107 136 L107 127 L100 128 L104 115 Z\" fill=\"#3f4f37\" /><path d=\"M105 125 L115 122 L121 131 L113 137 Z\" fill=\"#806348\" stroke-width=\"2\"/>",
+    "head": "<g transform=\"translate(-22 20) scale(.83)\"><g transform=\"translate(0 8)\"><path d=\"M49 78 Q45 56 61 42 Q75 30 96 32 Q120 29 138 44 Q157 61 153 83 Q151 103 136 115 Q121 129 101 130 Q80 133 66 118 Q54 108 52 95 Q47 90 49 78 Z\" fill=\"#96a183\" /><path d=\"M137 45 Q152 67 140 89 Q133 103 121 113 L116 126 Q133 123 143 110 Q155 97 153 78 Q154 58 137 45 Z\" fill=\"#7b8b6d\" stroke=\"none\"/><g id=\"front-facing-mouth\" transform=\"translate(9 0)\"><path d=\"M60 109 Q76 105 98 110 Q108 112 111 119 L105 129 Q88 135 72 127 Q63 123 60 109 Z\" fill=\"#382d29\" /><path d=\"M65 110 L73 110 L73 117 L66 117 Z\" fill=\"#f1ebd0\" stroke-width=\"1.6\"/><path d=\"M82 109 L90 111 L89 118 L82 117 Z\" fill=\"#f1ebd0\" stroke-width=\"1.6\"/><path d=\"M99 112 L104 114 L103 119 L98 118 Z\" fill=\"#e4dfc4\" stroke-width=\"1.4\"/></g><ellipse cx=\"75\" cy=\"82\" rx=\"15\" ry=\"14\" fill=\"#f1ebd0\" stroke-width=\"2.6\"/><ellipse cx=\"113\" cy=\"79\" rx=\"18\" ry=\"19\" fill=\"#f1ebd0\" stroke-width=\"2.6\"/><ellipse cx=\"75\" cy=\"82\" rx=\"3\" ry=\"3.7\" fill=\"#252c25\" stroke=\"none\"/><ellipse cx=\"113\" cy=\"79\" rx=\"3.4\" ry=\"4.1\" fill=\"#252c25\" stroke=\"none\"/><path d=\"M85 98 L82 103 L88 103 Z\" fill=\"#48553e\" stroke=\"none\"/><path d=\"M94 99 L92 104 L97 103 Z\" fill=\"#48553e\" stroke=\"none\"/><path d=\"M62 70 Q75 63 86 70 M100 63 Q113 58 125 64\" fill=\"none\" stroke=\"#647756\" stroke-width=\"1.8\"/><path d=\"M123 105 L130 101 M54 94 L59 97\" fill=\"none\" stroke=\"#6f8263\" stroke-width=\"1.8\"/><path d=\"M70 38 L66 34 M86 33 L85 27 M108 33 L114 26 M132 42 L139 39\" fill=\"none\" stroke=\"#2c322a\" stroke-width=\"1.8\"/><g id=\"face-wrinkles\" fill=\"none\" stroke=\"#617153\" stroke-width=\"1.7\"><path d=\"M68 51 Q78 46 86 48\"/><path d=\"M73 56 Q80 52 87 54\"/><path d=\"M114 99 Q125 102 131 94\"/><path d=\"M122 105 L130 103\"/><path d=\"M54 101 L59 103\"/></g></g></g>",
+    "jaw": "<g transform=\"translate(-22 20) scale(.83)\"><g transform=\"translate(8 8)\"><path d=\"M64 123 Q78 129 96 128 Q111 123 120 114 Q124 128 113 135 Q98 142 82 137 Q69 133 64 123 Z\" fill=\"#8c9b79\" /><path id=\"lower-tooth-left\" d=\"M73 127 L73 121 L80 122 L80 129 Z\" fill=\"#f1ebd0\" stroke-width=\"1.5\"/><path id=\"lower-tooth-right\" d=\"M91 130 L90 123 L98 121 L99 128 Z\" fill=\"#f1ebd0\" stroke-width=\"1.5\"/><path d=\"M82 135 Q99 139 111 130\" fill=\"none\" stroke=\"#627b55\" stroke-width=\"1.8\"/></g></g>",
+    "cap": "<path d=\"M19 58 Q19 40 35 36 Q62 30 84 39 Q99 45 103 62 L83 68 L42 65 Z\" fill=\"#68754b\" /><path d=\"M29 40 L43 37 L49 48 L42 58 L28 52 Z\" fill=\"#a09160\" stroke=\"none\"/><path d=\"M62 36 L76 38 L79 49 L91 52 L88 62 L70 57 L64 47 Z\" fill=\"#3f4f37\" stroke=\"none\"/><path d=\"M19 55 Q56 51 94 61 L107 66 L96 73 L62 68 Q37 69 10 64 Q6 60 19 55 Z\" fill=\"#3f4f37\" /><path d=\"M22 61 Q57 58 86 66\" fill=\"none\" stroke=\"#8b9670\" stroke-width=\"2\"/><path d=\"M52 40 L60 41 L61 49 L53 48 Z\" fill=\"#b2af7c\" stroke-width=\"1.4\"/>"
+  }
+}

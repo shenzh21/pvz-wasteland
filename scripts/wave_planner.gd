@@ -67,6 +67,23 @@ static func choose_zombie_type(level: int, wave_index: int, total_waves: int, ma
 			return forced_kind
 	if level == 11 and wave_index==3 and max_points>=GameData.ZOMBIE_POINTS.cone:
 		return "cone"
+	if level == 12:
+		# 两个大波组都会出现军迷僵尸，并保证疾跑和路障不会被随机漏掉。
+		var forced_kind: String = str({
+			3:"camo", 6:"runner", 8:"cone",
+			13:"camo", 16:"runner", 18:"cone"
+		}.get(wave_index,""))
+		if forced_kind!="" and max_points>=int(GameData.ZOMBIE_POINTS[forced_kind]):
+			return forced_kind
+	if level == 13:
+		# 三个大波组都轮流安排本关的五种非普通敌人，保证完整阵容稳定登场。
+		var forced_kind: String = str({
+			3:"camo", 4:"cone", 5:"bucket", 7:"kart", 8:"charger",
+			13:"camo", 14:"cone", 15:"bucket", 17:"kart", 18:"charger",
+			23:"camo", 24:"cone", 25:"bucket", 27:"kart", 28:"charger"
+		}.get(wave_index,""))
+		if forced_kind!="" and max_points>=int(GameData.ZOMBIE_POINTS[forced_kind]):
+			return forced_kind
 	for attempt in 8:
 		var roll := rng.randf()
 		var candidate := "normal"
@@ -120,6 +137,24 @@ static func choose_zombie_type(level: int, wave_index: int, total_waves: int, ma
 				candidate = "cone"
 		elif level == 11:
 			candidate = "cone" if progress>=0.2 and roll<0.42 else "normal"
+		elif level == 12:
+			if progress>=0.22 and roll<0.22:
+				candidate = "camo"
+			elif progress>=0.16 and roll<0.43:
+				candidate = "runner"
+			elif roll<0.72:
+				candidate = "cone"
+		elif level == 13:
+			if progress>=0.30 and roll<0.12:
+				candidate = "charger"
+			elif progress>=0.24 and roll<0.24:
+				candidate = "kart"
+			elif progress>=0.18 and roll<0.38:
+				candidate = "camo"
+			elif progress>=0.12 and roll<0.52:
+				candidate = "bucket"
+			elif roll<0.76:
+				candidate = "cone"
 		elif progress >= 0.55 and roll < 0.13:
 			candidate = "bucket"
 		elif progress >= 0.35 and roll > 0.83:

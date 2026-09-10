@@ -1,6 +1,8 @@
 class_name GameView
 extends Node2D
 
+const CamoArt := preload("res://scripts/camo_art.gd")
+
 const ImpArt := preload("res://scripts/imp_art.gd")
 
 var art_parent_transform := Transform2D.IDENTITY
@@ -411,7 +413,9 @@ func draw_detail_row(label: String, value: String, y: float, value_color: Color)
 	draw_string(ThemeDB.fallback_font,Vector2(1030,y),value,HORIZONTAL_ALIGNMENT_RIGHT,110,18,value_color)
 
 func draw_zombie_portrait(kind: String, pos: Vector2, scale: float) -> void:
-	draw_zombie({"x":pos.x,"draw_y":pos.y,"draw_scale":scale,"row":0,"anim":0.0,"slow":0.0,
+	# 匍匐角色横向较长，图鉴缩略图需留出名称与数值栏。
+	var portrait_scale := scale*0.68 if kind=="camo" else scale
+	draw_zombie({"x":pos.x,"draw_y":pos.y,"draw_scale":portrait_scale,"row":0,"anim":0.0,"slow":0.0,
 		"kind":kind,"hp":1.0,"max_hp":1.0,"walking":false,"biting":false,"hide_bar":true})
 
 func draw_prepare_screen() -> void:
@@ -671,7 +675,7 @@ func draw_plant(p: Dictionary) -> void:
 
 func draw_plant_shape(kind: String, pos: Vector2, scale: float) -> void:
 	# stem and leaves
-	if kind not in ["wall","cherry","mine","yam_guard","cactus","slime","squash"]:
+	if kind not in ["wall","cherry","mine","yam_guard","cactus","slime","squash","short_pea"]:
 		draw_rect(Rect2(pos+Vector2(-4,9)*scale,Vector2(8,31)*scale),Color("#347c3c"))
 		draw_colored_polygon(PackedVector2Array([pos+Vector2(-3,25)*scale,pos+Vector2(-28,14)*scale,pos+Vector2(-20,36)*scale]),Color("#55a94b"))
 		draw_colored_polygon(PackedVector2Array([pos+Vector2(3,29)*scale,pos+Vector2(27,19)*scale,pos+Vector2(18,40)*scale]),Color("#438e42"))
@@ -687,6 +691,31 @@ func draw_plant_shape(kind: String, pos: Vector2, scale: float) -> void:
 			draw_circle(pos+Vector2(0,-8)*scale,23*scale,c); draw_circle(pos+Vector2(20,-9)*scale,12*scale,c.darkened(.08)); draw_circle(pos+Vector2(25,-9)*scale,6*scale,Color("#244f3e"))
 			draw_circle(pos+Vector2(-6,-15)*scale,4*scale,Color("#172e28")); draw_circle(pos+Vector2(-5,-16)*scale,1.4*scale,Color.WHITE)
 			if kind=="snow": draw_rect(Rect2(pos+Vector2(-18,-35)*scale,Vector2(30,7)*scale),Color("#e9fbff"))
+		"short_pea":
+			# 没有茎和躯干：低位豌豆头直接架在一圈贴地叶片上。
+			var leaf_dark := Color("#34753a")
+			var leaf := Color("#50a847")
+			for leaf_points in [
+				[Vector2(-3,23),Vector2(-35,12),Vector2(-25,32)],
+				[Vector2(2,24),Vector2(36,13),Vector2(25,33)],
+				[Vector2(-8,25),Vector2(-22,37),Vector2(2,32)],
+				[Vector2(7,25),Vector2(23,38),Vector2(-1,32)]
+			]:
+				var points := PackedVector2Array()
+				for point in leaf_points: points.append(pos+point*scale)
+				draw_colored_polygon(points,leaf_dark)
+			var head_center := pos+Vector2(0,8)*scale
+			draw_circle(head_center,24*scale,Color("#68bf46"))
+			draw_circle(head_center+Vector2(20,-1)*scale,12*scale,Color("#57a63e"))
+			draw_circle(head_center+Vector2(26,-1)*scale,6*scale,Color("#234b35"))
+			draw_circle(head_center+Vector2(-7,-8)*scale,4*scale,Color("#172e28"))
+			draw_circle(head_center+Vector2(-6,-9)*scale,1.4*scale,Color.WHITE)
+			draw_colored_polygon(PackedVector2Array([
+				pos+Vector2(-3,26)*scale,pos+Vector2(-31,15)*scale,pos+Vector2(-24,34)*scale
+			]),leaf)
+			draw_colored_polygon(PackedVector2Array([
+				pos+Vector2(4,27)*scale,pos+Vector2(31,17)*scale,pos+Vector2(23,35)*scale
+			]),leaf)
 		"cactus":
 			var body := Color("#75ad43")
 			var dark := Color("#3f6d34")
@@ -916,6 +945,9 @@ func draw_zombie(z: Dictionary) -> void:
 	if z.kind=="imp":
 		draw_imp_zombie(z)
 		return
+	if z.kind=="camo":
+		draw_camo_zombie(z)
+		return
 	var pos := zombie_display_position(z)
 	var scale: float = z.get("draw_scale",1.0)
 	var head := ZombieArt.draw(self,z,pos,scale,art_parent_transform)
@@ -986,6 +1018,15 @@ func draw_zombie(z: Dictionary) -> void:
 		draw_bar(zombie_bar_position(z,pos)+Vector2(-39,-112)*scale,68*scale,z.hp/z.max_hp,Color("#df6b54"))
 	if z.slow>0: draw_circle(pos+Vector2(-10,-55)*scale,32*scale,Color(0.4,0.9,1,0.13),false,3*scale)
 
+func draw_camo_zombie(z: Dictionary) -> void:
+	var pos := zombie_display_position(z)
+	var scale: float = z.get("draw_scale",1.0)
+	var head := CamoArt.draw(self,z,pos,scale,art_parent_transform)
+	if z.get("rooted",false): draw_rooted_effect(pos+Vector2(0,-10)*scale,scale)
+	if show_health_bars and not z.get("hide_bar",false):
+		draw_bar(zombie_bar_position(z,pos)+Vector2(-48,-49)*scale,96*scale,z.hp/z.max_hp,Color("#df6b54"))
+	if z.slow>0: draw_circle(head,28*scale,Color(0.4,0.9,1,0.13),false,3*scale)
+
 func draw_kart_zombie(z: Dictionary) -> void:
 	var pos := zombie_display_position(z)
 	var scale: float = z.get("draw_scale",1.0)
@@ -1025,7 +1066,7 @@ func draw_detached_arm(arm: Dictionary) -> void:
 	var pos: Vector2 = arm.pos
 	var angle: float = arm.angle
 	var skin := Color("#71b8bd") if arm.slow else Color("#83a96b")
-	var jacket := Color("#46372f")
+	var jacket := Color("#667348") if arm.get("kind","")=="camo" else Color("#46372f")
 	var elbow := pos + Vector2(16,5).rotated(angle)
 	var wrist := pos + Vector2(27,19).rotated(angle)
 	draw_line(pos,elbow,jacket,10.0)
