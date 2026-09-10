@@ -42,6 +42,15 @@ static func load_campaign(path: String, defaults: Dictionary, level_data: Dictio
 	result.unlocked_level = clampi(int(config.get_value("campaign", "unlocked_level", result.unlocked_level)), 1, level_data.size())
 	result.high_score = maxi(0, int(config.get_value("campaign", "high_score", result.high_score)))
 	result.campaign_completed = bool(config.get_value("campaign", "completed", result.campaign_completed))
+	result.money = maxi(0,int(config.get_value("economy","money",result.money)))
+	result.item_inventory = result.item_inventory.duplicate(true)
+	result.item_inventory.air_bomb = clampi(int(config.get_value("items","air_bomb",result.item_inventory.air_bomb)),0,3)
+	result.item_inventory.sun_pack = clampi(int(config.get_value("items","sun_pack",result.item_inventory.sun_pack)),0,99)
+	result.claimed_money_bags = {}
+	for value in config.get_value("rewards","money_bags",[]):
+		var level := int(value)
+		if level>=1 and level<=level_data.size():
+			result.claimed_money_bags[level] = true
 	if result.campaign_completed and result.unlocked_level < level_data.size():
 		result.unlocked_level = level_data.size()
 		result.campaign_completed = false
@@ -61,10 +70,18 @@ static func load_campaign(path: String, defaults: Dictionary, level_data: Dictio
 
 static func save_campaign(path: String, state: Dictionary, level_count: int) -> void:
 	var config := ConfigFile.new()
-	config.set_value("save", "version", 1)
+	config.set_value("save", "version", 2)
 	config.set_value("campaign", "unlocked_level", state.unlocked_level)
 	config.set_value("campaign", "high_score", state.high_score)
 	config.set_value("campaign", "completed", state.campaign_completed)
+	config.set_value("economy","money",state.money)
+	config.set_value("items","air_bomb",state.item_inventory.air_bomb)
+	config.set_value("items","sun_pack",state.item_inventory.sun_pack)
+	var claimed_levels: Array[int] = []
+	for level in state.claimed_money_bags:
+		if bool(state.claimed_money_bags[level]): claimed_levels.append(int(level))
+	claimed_levels.sort()
+	config.set_value("rewards","money_bags",claimed_levels)
 	for level in range(1, level_count + 1):
 		if state.saved_loadouts.has(level):
 			config.set_value("loadouts", "level_%d" % level, state.saved_loadouts[level])

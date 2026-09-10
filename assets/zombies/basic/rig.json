@@ -1,0 +1,90 @@
+{
+  "canvas": [
+    240,
+    360
+  ],
+  "origin": [
+    132,
+    210
+  ],
+  "unit": 0.46,
+  "pivots": {
+    "far_thigh": [
+      126,
+      239
+    ],
+    "far_calf": [
+      112,
+      281
+    ],
+    "far_shoe": [
+      122,
+      320
+    ],
+    "near_thigh": [
+      157,
+      240
+    ],
+    "near_calf": [
+      166,
+      284
+    ],
+    "near_shoe": [
+      157,
+      322
+    ],
+    "far_upper_arm": [
+      100,
+      163
+    ],
+    "far_forearm": [
+      86,
+      207
+    ],
+    "torso": [
+      134,
+      233
+    ],
+    "tie": [
+      121,
+      157
+    ],
+    "near_upper_arm": [
+      155,
+      164
+    ],
+    "near_forearm": [
+      172,
+      212
+    ],
+    "neck": [
+      121,
+      137
+    ],
+    "head": [
+      124,
+      120
+    ],
+    "jaw": [
+      121,
+      124
+    ]
+  },
+  "order": [
+    "far_thigh",
+    "far_calf",
+    "far_shoe",
+    "near_thigh",
+    "near_calf",
+    "near_shoe",
+    "far_upper_arm",
+    "far_forearm",
+    "torso",
+    "tie",
+    "near_upper_arm",
+    "near_forearm",
+    "neck",
+    "head",
+    "jaw"
+  ]
+}

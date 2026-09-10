@@ -1,90 +1,8 @@
-extends Node2D
+extends "res://scripts/game_view.gd"
 
-const GameData := preload("res://scripts/game_data.gd")
 const WavePlanner := preload("res://scripts/wave_planner.gd")
 const Persistence := preload("res://scripts/persistence.gd")
 const AudioSynth := preload("res://scripts/audio_synth.gd")
-const W := GameData.W
-const H := GameData.H
-const BOARD_X := GameData.BOARD_X
-const BOARD_Y := GameData.BOARD_Y
-const CELL_W := GameData.CELL_W
-const CELL_H := GameData.CELL_H
-const ROWS := GameData.ROWS
-const COLS := GameData.COLS
-const ZOMBIE_DPS := GameData.ZOMBIE_DPS
-const SUNFLOWER_INTERVAL := GameData.SUNFLOWER_INTERVAL
-const ZOMBIE_POINTS := GameData.ZOMBIE_POINTS
-const PLANT_DATA := GameData.PLANT_DATA
-const PLANT_INFO := GameData.PLANT_INFO
-const ZOMBIE_INFO := GameData.ZOMBIE_INFO
-const LEVEL_DATA := GameData.LEVEL_DATA
-
-# 快捷键绑定卡槽而不是植物。以后更换出战阵容时只需修改这个列表，
-# 对应卡槽的快捷键会自动选择新的植物。
-var equipped_plants: Array[String] = ["sunflower", "pea", "wall", "mine"]
-
-var game_state := "title"
-var paused := false
-var game_time := 0.0
-var sun_points := 150
-var selected := ""
-var hover_cell := Vector2i(-1, -1)
-var hover_card := -1
-var plants: Array = []
-var zombies: Array = []
-var projectiles: Array = []
-var suns: Array = []
-var particles: Array = []
-var yam_minions: Array = []
-var detached_arms: Array = []
-var dropped_armor: Array = []
-var mowers: Array = []
-var cooldowns := {}
-var spawn_clock := 0.0
-var spawn_clock_start := 0.0
-var current_wave := 0
-var wave_plan: Array = []
-var big_wave_warning := false
-var sky_sun_clock := 4.0
-var final_wave_sent := false
-var current_level := 1
-var unlocked_level := 1
-var wave_banner_time := 0.0
-var shake := 0.0
-var flash := 0.0
-var message := ""
-var message_time := 0.0
-var rng := RandomNumberGenerator.new()
-var high_score := 0
-var game_speed := 1.0
-var music_volume := 0.45
-var sfx_volume := 0.75
-var sound_enabled := true
-var auto_collect_sun := false
-var show_health_bars := true
-var fullscreen_enabled := false
-var speed_options := [0.5, 1.0, 1.5, 2.0, 2.5, 3.0]
-var music_player: AudioStreamPlayer
-var sfx_cache := {}
-var sfx_players: Array[AudioStreamPlayer] = []
-var sfx_player_cursor := 0
-var pause_page := "main"
-var almanac_tab := "plants"
-var almanac_selected := 0
-var binding_target := -99
-var fullscreen_notice := ""
-var prepare_time := 0.0
-var prepare_camera_x := 0.0
-var prepare_returning := false
-var available_plants: Array[String] = []
-var preview_zombies: Array = []
-var plant_keys := [KEY_1, KEY_2, KEY_3, KEY_4, KEY_Q, KEY_W, KEY_E, KEY_R]
-var shovel_key := KEY_D
-const SETTINGS_PATH := "user://garden_settings.cfg"
-const SAVE_PATH := "user://pixel_garden_save.cfg"
-var campaign_completed := false
-var saved_loadouts := {}
 
 func _ready() -> void:
 	rng.randomize()
@@ -102,8 +20,19 @@ func _ready() -> void:
 	var args := OS.get_cmdline_user_args()
 	if "--capture-almanac" in args:
 		game_state = "almanac"
-		if "--zombies" in args: almanac_tab = "zombies"
+		if "--zombies" in args:
+			almanac_tab = "zombies"
+			if "--charger" in args:
+				almanac_selected = ZOMBIE_INFO.keys().find("charger")
+				almanac_row_offset = almanac_max_offset()
+		elif "--squash" in args:
+			almanac_selected = PLANT_DATA.keys().find("squash")
+			almanac_row_offset = almanac_max_offset()
 		capture_preview.call_deferred()
+	elif "--smoke-almanac" in args:
+		game_state = "almanac"
+		almanac_tab = "plants"
+		scroll_almanac(1)
 	elif "--capture-level-select" in args or "--smoke-level-select" in args:
 		game_state = "level_select"
 		if "--capture-level-select" in args: capture_preview.call_deferred()
@@ -113,11 +42,266 @@ func _ready() -> void:
 	elif "--smoke-wasteland" in args:
 		equipped_plants.assign(LEVEL_DATA[4].plants)
 		reset_game(4)
+		assert(is_equal_approx(zombie_row_score("normal",1,9),2.0),"第一大波结束前荒地行僵尸必须占双倍分数")
+		assert(is_equal_approx(zombie_row_score("normal",1,10),1.5),"第一大波结束后荒地行僵尸必须占1.5倍分数")
+		assert(is_equal_approx(zombie_row_score("cone",0,10),2.0),"草地行僵尸分数不能受到荒地倍率影响")
 		sun_points = 999
 		place_plant("yam_guard", 2, 2)
 		place_plant("yam_guard", 2, 0)
 		spawn_zombie(1, "normal", 570.0)
 		spawn_zombie(3, "cone", 570.0)
+	elif "--smoke-needle" in args:
+		equipped_plants.assign(LEVEL_DATA[5].plants)
+		reset_game(5)
+		sun_points = 999
+		place_plant("needle", 4, 2)
+		spawn_zombie(1, "normal", 930.0)
+		spawn_zombie(3, "runner", 850.0)
+	elif "--smoke-kart" in args:
+		equipped_plants.assign(LEVEL_DATA[6].plants.slice(0,8))
+		reset_game(6)
+		spawn_zombie(0,"kart",850.0)
+		var blast_target: Dictionary = zombies[-1]
+		damage_zombie(blast_target,1800.0)
+		assert(blast_target.dead,"卡丁车必须把车体剩余伤害继续传递给小鬼")
+	elif "--smoke-cactus" in args:
+		equipped_plants.assign(LEVEL_DATA[6].plants.slice(0,8))
+		reset_game(6)
+		sun_points = 999
+		place_plant("cactus",2,2)
+		for i in 4:
+			spawn_zombie(2,"normal",700.0)
+			zombies[-1].x = 700.0+i*5.0
+		projectiles.append({"row":2,"x":700.0,"y":cell_center(2,2).y-9.0,"speed":0.0,
+			"damage":20.0,"snow":false,"piercing":true,"hit_ids":[],"max_hits":3,"dead":false})
+		update_projectiles(0.0)
+		assert(projectiles[-1].dead and zombies[0].hp==170.0 and zombies[1].hp==170.0 and zombies[2].hp==170.0 and zombies[3].hp==190.0,
+			"仙人掌尖刺必须只命中前三个不同目标")
+	elif "--smoke-slime" in args:
+		equipped_plants.assign(LEVEL_DATA[7].plants.slice(0,8))
+		reset_game(7)
+		sun_points = 999
+		place_plant("slime",4,2)
+		spawn_zombie(2,"swing",cell_center(5,2).x)
+		zombies[-1].x = cell_center(5,2).x
+		update_plants(0.2)
+		assert(zombies[-1].rooted,"粘液多肉必须固定自身及前后一格范围内的目标")
+		var swing_test: Dictionary = zombies[-1]
+		var old_row: int = swing_test.row
+		swing_test.swing_clock = 0.0
+		update_zombies(0.1)
+		assert(swing_test.row==old_row,"被固定的摇摆僵尸不能换行")
+		swing_test.rooted = false
+		update_zombies(0.1)
+		assert(absi(swing_test.row-old_row)==1,"摇摆僵尸每次只能移动到相邻行")
+		assert(absf(float(swing_test.draw_row)-float(old_row))<0.5,"摇摆僵尸换行时画面位置必须平滑过渡")
+		spawn_zombie(0,"swing",850.0)
+		var down_test: Dictionary = zombies[-1]
+		down_test.swing_clock = 0.0
+		update_zombies(0.1)
+		assert(down_test.row==1,"顶行摇摆僵尸必须向下换行")
+		spawn_zombie(ROWS-1,"swing",850.0)
+		var up_test: Dictionary = zombies[-1]
+		up_test.swing_clock = 0.0
+		update_zombies(0.1)
+		assert(up_test.row==ROWS-2,"底行摇摆僵尸必须向上换行")
+		reset_game(7)
+		sun_points = 999
+		place_plant("slime",4,2)
+		var slime_test: Dictionary = plants[-1]
+		spawn_zombie(2,"normal",cell_center(4,2).x)
+		var held_test: Dictionary = zombies[-1]
+		held_test.x = cell_center(4,2).x+20.0
+		held_test.rooted = true
+		held_test.biting = true
+		var slime_hp_before: float = slime_test.hp
+		update_zombies(0.25)
+		assert(not held_test.biting and slime_test.hp==slime_hp_before,"被固定的僵尸必须停止啃咬和造成伤害")
+		reset_game(7)
+		sun_points = 999
+		place_plant("slime",4,2)
+		spawn_zombie(2,"kart",cell_center(5,2).x)
+		var kart_test: Dictionary = zombies[-1]
+		kart_test.x = cell_center(5,2).x
+		update_plants(0.1)
+		assert(not kart_test.rooted,"粘液多肉不能固定卡丁车车体")
+		damage_zombie(kart_test,500.0)
+		update_plants(0.1)
+		assert(kart_test.kind=="imp" and kart_test.rooted,"车毁后的小鬼僵尸必须可以被固定")
+	elif "--smoke-economy" in args:
+		equipped_plants.assign(LEVEL_DATA[8].plants.slice(0,8))
+		reset_game(8)
+		assert(wave_plan.size()==20 and level_zombie_types()==["normal","cone","kart","swing"],"荒地第五关必须有两组大波和指定僵尸")
+		assert(coin_kind_for_roll(0.019)=="gold" and coin_kind_for_roll(0.02)=="silver" and coin_kind_for_roll(0.099)=="silver" and coin_kind_for_roll(0.10)=="","钱币掉率边界必须为金币2%、银币8%")
+		money = 30000
+		item_inventory = {"air_bomb":0,"sun_pack":0}
+		for i in 4: purchase_item("air_bomb")
+		assert(item_inventory.air_bomb==3 and money==6000,"空投炸弹最多持有三个，达到上限后不能继续扣款")
+		purchase_item("sun_pack")
+		var sun_before := sun_points
+		activate_item("sun_pack")
+		assert(item_inventory.sun_pack==0 and sun_points==sun_before+500,"阳光礼包必须消耗一份并提供500阳光")
+		spawn_zombie(2,"normal",cell_center(4,2).x)
+		zombies[-1].x = cell_center(4,2).x
+		use_air_bomb(4,2)
+		assert(zombies[-1].dead and item_inventory.air_bomb==2,"空投炸弹必须造成樱桃炸弹伤害并消耗库存")
+		# 隔离前一项击杀测试可能产生的随机掉币。
+		coins.clear()
+		var money_before := money
+		spawn_coin(Vector2(500,400),"silver")
+		collect_coin(coins[-1])
+		spawn_coin(Vector2(540,400),"gold")
+		collect_coin(coins[-1])
+		assert(money==money_before+110,"银币和金币必须分别价值10与100")
+		auto_collect_sun = true
+		var auto_money_before := money
+		spawn_coin(Vector2(580,400),"silver")
+		var auto_coin: Dictionary = coins[-1]
+		auto_coin.pos = Vector2(auto_coin.pos.x,auto_coin.target_y)
+		auto_coin.vel = Vector2.ZERO
+		auto_coin.pulse = 1.0
+		update_coins(0.05)
+		assert(auto_coin.dead,"自动拾取必须收取已经落地的钱币")
+		assert(money==auto_money_before+10,"自动拾取的银币必须增加10资金")
+		auto_collect_sun = false
+		spawn_coin(Vector2(620,400),"gold")
+		var manual_coin: Dictionary = coins[-1]
+		manual_coin.pos = Vector2(manual_coin.pos.x,manual_coin.target_y)
+		manual_coin.vel = Vector2.ZERO
+		manual_coin.pulse = 1.0
+		update_coins(0.05)
+		assert(not manual_coin.dead and money==auto_money_before+10,"关闭自动拾取后钱币必须留在场上")
+		reset_game(7)
+		money = 0
+		claimed_money_bags.clear()
+		mowers[0].used = true
+		finish_level()
+		assert(money==500 and mower_bonus_count==4 and reward_bag_awarded,"首次钱袋奖励和保留小推车奖励必须正确结算")
+		reset_game(1)
+		unlocked_level = LEVEL_DATA.size()
+		money = 0
+		finish_level()
+		assert(money==600 and reward_bag_awarded,"重玩任意已完成关卡都必须额外获得钱袋")
+	elif "--smoke-squash" in args:
+		equipped_plants.assign(LEVEL_DATA[9].plants.slice(0,8))
+		reset_game(9)
+		sun_points = 999
+		assert(wave_plan.size()==30 and level_zombie_types()==["normal","cone","bucket","runner","kart","swing"],"荒地第六关必须有三组大波和完整的非旗帜僵尸阵容")
+		var planned_kinds: Array[String] = []
+		for planned_wave in wave_plan:
+			for planned_kind in planned_wave:
+				if planned_kind not in planned_kinds:
+					planned_kinds.append(planned_kind)
+		for required_kind in ["normal","cone","bucket","runner","kart","swing"]:
+			assert(required_kind in planned_kinds,"荒地第六关的随机波次不能漏掉%s" % required_kind)
+		var third_group_score := 0
+		for wave_index in range(20,30):
+			third_group_score += wave_score(wave_plan[wave_index])
+		assert(third_group_score==111,"荒地第六关第三个大波组的计划分数必须为111")
+		place_plant("squash",4,2)
+		var squash_test: Dictionary = plants[-1]
+		var squash_center := cell_center(4,2).x
+		spawn_zombie(2,"normal",squash_center+CELL_W+30.0)
+		zombies[-1].x = squash_center+CELL_W+30.0
+		update_plants(0.1)
+		assert(int(squash_test.squash_phase)==0,"倭瓜不能攻击触发范围外的僵尸")
+		# 回归截图中的情况：僵尸已经越过倭瓜中心、位于左侧相邻格时也应触发。
+		zombies[-1].x = squash_center-CELL_W+2.0
+		spawn_zombie(2,"cone",squash_center-CELL_W+8.0)
+		zombies[-1].x = squash_center-CELL_W+8.0
+		update_plants(0.1)
+		assert(int(squash_test.squash_phase)==1,"倭瓜必须攻击左侧相邻格内已经靠近的僵尸")
+		update_plants(0.2)
+		update_plants(0.4)
+		assert(zombies[0].dead and zombies[1].dead,"倭瓜必须伤害落点附近的所有僵尸")
+		update_plants(0.3)
+		assert(squash_test.dead,"倭瓜攻击后必须消失")
+		place_plant("squash",3,2)
+		var kart_squash: Dictionary = plants[-1]
+		spawn_zombie(2,"kart",cell_center(3,2).x)
+		zombies[-1].x = cell_center(3,2).x
+		update_plants(0.1)
+		update_zombies(0.1)
+		assert(kart_squash.squash_phase==1 and not kart_squash.dead,
+			"与卡丁车同格种下倭瓜时必须先触发攻击，不能被车辆碾压")
+		update_plants(0.2)
+		update_plants(0.4)
+		assert(zombies[-1].dead and kart_squash.squash_phase==3,"倭瓜伤害必须贯穿卡丁车车体并消灭小鬼")
+	elif "--smoke-charger" in args:
+		equipped_plants.assign(LEVEL_DATA[10].plants.slice(0,8))
+		reset_game(10)
+		assert(wave_plan.size()==20 and level_zombie_types()==["normal","cone","bucket","runner","charger"],
+			"荒地第七关必须有两个大波组和指定僵尸阵容")
+		var planned_kinds: Array[String] = []
+		for planned_wave in wave_plan:
+			for planned_kind in planned_wave:
+				if planned_kind not in planned_kinds: planned_kinds.append(planned_kind)
+		for required_kind in ["normal","cone","bucket","runner","charger"]:
+			assert(required_kind in planned_kinds,"荒地第七关的波次不能漏掉%s" % required_kind)
+		spawn_zombie(2,"charger",900.0)
+		var charger_test: Dictionary = zombies[-1]
+		assert(charger_test.hp==1690.0 and charger_test.speed==25.0 and ZOMBIE_POINTS.charger==4,
+			"钢盔冲锋僵尸的生命、速度和点数必须正确")
+		damage_zombie(charger_test,1500.0)
+		assert(charger_test.hp==190.0 and charger_test.armor_lost,"钢盔承受1500伤害后必须脱落并留下190本体生命")
+		damage_zombie(charger_test,190.0)
+		assert(charger_test.dead,"钢盔脱落后的190点本体生命耗尽时必须死亡")
+	elif "--smoke-music" in args:
+		collect_music_prewarm(true)
+		var menu_stream: AudioStreamWAV = music_cache.menu
+		var frontyard_stream: AudioStreamWAV = music_cache.frontyard
+		var wasteland_stream: AudioStreamWAV = music_cache.wasteland
+		assert(menu_stream.get_length()>35.0,"关卡外音乐必须明显长于旧循环")
+		assert(frontyard_stream.get_length()>30.0,"前院音乐必须是较长循环")
+		assert(wasteland_stream.get_length()>40.0,"荒地音乐必须是较长循环")
+		assert(not is_equal_approx(frontyard_stream.get_length(),wasteland_stream.get_length()),"前院和荒地音乐必须使用不同编曲")
+	elif "--smoke-navigation" in args:
+		game_state = "title"
+		handle_click(Vector2(900,515))
+		assert(game_state=="settings" and pause_page=="main","主界面设置按钮必须打开设置")
+		handle_pause_click(Vector2(620,420))
+		assert(pause_page=="more","主界面设置必须能够进入更多设置")
+		handle_pause_click(Vector2(600,595))
+		assert(pause_page=="main","更多设置必须能够返回设置首页")
+		handle_pause_click(Vector2(600,550))
+		assert(game_state=="title","独立设置必须能够返回主界面")
+		prepare_level(1)
+		prepare_camera_x = 520.0
+		handle_prepare_click(Vector2(350,600))
+		assert(game_state=="title","选卡界面的菜单按钮必须返回主界面")
+		reset_game(1)
+		game_state = "win"
+		handle_click(Vector2(800,535))
+		assert(game_state=="title","关卡结算界面的返回主菜单按钮必须生效")
+	elif "--smoke-fixed-level" in args:
+		prepare_level(11)
+		assert(has_fixed_loadout() and equipped_plants==["sunflower","slime"],"荒地第八关必须固定向日葵和粘液多肉")
+		assert(not is_wasteland_level() and is_plantable_cell(1) and is_plantable_cell(3),"荒地第八关必须使用五行都能种植的前院地图")
+		assert(LEVEL_DATA[current_level].world=="荒地" and desired_music_track()=="frontyard","荒地第八关须保留章节名称，但音乐跟随前院地图")
+		assert(is_equal_approx(zombie_row_score("normal",1,0),1.0),"前院地图不能应用荒地行出怪分数倍率")
+		prepare_camera_x = 520.0
+		handle_prepare_click(card_rect(0).get_center())
+		handle_prepare_click(prepare_card_rect(1).get_center())
+		assert(equipped_plants==["sunflower","slime"],"固定卡组不能在选卡界面增删")
+		reset_game(11)
+		assert(wave_plan.size()==10 and level_zombie_types()==["normal","cone"],"荒地第八关必须只有一组大波和普通、路障僵尸")
+		for planned_wave in wave_plan:
+			for planned_kind in planned_wave:
+				assert(planned_kind in ["normal","cone"],"荒地第八关不能生成其他僵尸")
+		assert(is_equal_approx(spawn_clock,9.0),"固定卡组关卡的首次出波等待必须为普通关卡的1.5倍")
+		spawn_clock = 0.0
+		update_spawning(0.0)
+		assert(spawn_clock>=13.5 and spawn_clock<=17.25,"固定卡组关卡的小波间隔必须为普通关卡的1.5倍")
+		current_wave = 9
+		spawn_clock = 0.0
+		big_wave_warning = false
+		update_spawning(0.0)
+		assert(big_wave_warning and is_equal_approx(spawn_clock,3.75),"固定卡组关卡的大波警告时间必须为普通关卡的1.5倍")
+	elif "--smoke-shop" in args:
+		unlocked_level = maxi(unlocked_level,4)
+		money = 1800
+		item_inventory = {"air_bomb":2,"sun_pack":1}
+		game_state = "shop"
 	elif "--capture-preview" in args or "--capture-zombie-art" in args or "--capture-pause" in args or "--capture-more" in args or "--capture-keys" in args or "--smoke-test" in args:
 		reset_game()
 		sun_points = 999
@@ -176,15 +360,20 @@ func reset_game(level := current_level) -> void:
 	zombies.clear()
 	projectiles.clear()
 	suns.clear()
+	coins.clear()
 	particles.clear()
 	yam_minions.clear()
 	detached_arms.clear()
 	dropped_armor.clear()
+	level_money_earned = 0
+	mower_bonus_count = 0
+	reward_bag_awarded = false
+	next_zombie_id = 1
 	mowers.clear()
 	cooldowns.clear()
 	wave_plan = build_wave_plan(current_level)
 	current_wave = 0
-	spawn_clock = 6.0
+	spawn_clock = 6.0*wave_interval_scale()
 	spawn_clock_start = spawn_clock
 	big_wave_warning = false
 	sky_sun_clock = 3.5
@@ -206,9 +395,12 @@ func prepare_level(level: int) -> void:
 	prepare_time = 0.0
 	prepare_camera_x = 0.0
 	prepare_returning = false
+	prepare_pool_row_offset = 0
 	equipped_plants.clear()
 	available_plants.assign(LEVEL_DATA[current_level].plants)
-	if saved_loadouts.has(current_level):
+	if has_fixed_loadout():
+		equipped_plants.assign(available_plants)
+	elif saved_loadouts.has(current_level):
 		for kind in saved_loadouts[current_level]:
 			if kind in available_plants and equipped_plants.size() < 8:
 				equipped_plants.append(kind)
@@ -216,6 +408,7 @@ func prepare_level(level: int) -> void:
 	zombies.clear()
 	projectiles.clear()
 	suns.clear()
+	coins.clear()
 	particles.clear()
 	yam_minions.clear()
 	detached_arms.clear()
@@ -226,11 +419,24 @@ func prepare_level(level: int) -> void:
 	queue_redraw()
 
 func level_zombie_types() -> Array[String]:
-	var result: Array[String] = ["normal", "cone", "flag"]
+	# 旗帜僵尸只用于实际大波提示，不加入开战前的阵容展示。
+	var result: Array[String] = ["normal", "cone"]
 	if current_level == 4:
 		return result
+	if current_level == 6:
+		return ["normal","cone","kart"]
+	if current_level == 7:
+		return ["normal","cone","runner","swing"]
+	if current_level == 8:
+		return ["normal","cone","kart","swing"]
+	if current_level == 9:
+		return ["normal","cone","bucket","runner","kart","swing"]
+	if current_level == 10:
+		return ["normal","cone","bucket","runner","charger"]
+	if current_level == 11:
+		return ["normal","cone"]
 	if current_level >= 2: result.insert(2, "bucket")
-	if current_level >= 3: result.insert(result.size() - 1, "runner")
+	if current_level >= 3: result.append("runner")
 	return result
 
 func choose_preview_zombie() -> String:
@@ -242,6 +448,30 @@ func choose_preview_zombie() -> String:
 		return "cone" if value < 0.38 else "normal"
 	if current_level == 4:
 		return "cone" if value < 0.35 else "normal"
+	if current_level == 6:
+		if value < 0.25: return "kart"
+		return "cone" if value < 0.52 else "normal"
+	if current_level == 7:
+		if value < 0.2: return "runner"
+		if value < 0.45: return "swing"
+		return "cone" if value < 0.68 else "normal"
+	if current_level == 8:
+		if value < 0.20: return "kart"
+		if value < 0.45: return "swing"
+		return "cone" if value < 0.70 else "normal"
+	if current_level == 9:
+		if value < 0.12: return "kart"
+		if value < 0.25: return "bucket"
+		if value < 0.39: return "runner"
+		if value < 0.55: return "swing"
+		return "cone" if value < 0.78 else "normal"
+	if current_level == 10:
+		if value < 0.14: return "charger"
+		if value < 0.29: return "bucket"
+		if value < 0.45: return "runner"
+		return "cone" if value < 0.72 else "normal"
+	if current_level == 11:
+		return "cone" if value<0.42 else "normal"
 	if value < 0.12: return "bucket"
 	if value < 0.28: return "runner"
 	return "cone" if value < 0.52 else "normal"
@@ -274,13 +504,19 @@ func build_zombie_preview() -> void:
 		preview_zombies.append({
 			"kind":display_kinds[i], "x":preview_pos.x, "draw_y":preview_pos.y,
 			"draw_scale":rng.randf_range(0.84,1.06),
-			"row":0, "anim":0.0, "slow":0.0, "walking":false,
+			"row":0, "anim":rng.randf_range(0.0,TAU), "idle_rate":rng.randf_range(0.86,1.12), "slow":0.0, "walking":false,
 			"hp":1.0, "max_hp":1.0, "hide_bar":true
 		})
 
+func update_preview_idle(delta: float) -> void:
+	for z in preview_zombies:
+		z.anim = float(z.anim) + delta
+
 func _process(delta: float) -> void:
+	update_music_context()
 	if game_state == "prepare":
 		prepare_time += delta
+		update_preview_idle(delta)
 		message_time = maxf(0.0, message_time - delta)
 		if prepare_returning:
 			prepare_camera_x = maxf(0.0, prepare_camera_x - delta * 520.0)
@@ -291,6 +527,7 @@ func _process(delta: float) -> void:
 		queue_redraw()
 		return
 	if game_state != "play" or paused:
+		message_time = maxf(0.0,message_time-delta)
 		queue_redraw()
 		return
 	var scaled_delta := delta * game_speed
@@ -307,6 +544,7 @@ func _process(delta: float) -> void:
 	update_projectiles(scaled_delta)
 	update_zombies(scaled_delta)
 	update_suns(scaled_delta)
+	update_coins(scaled_delta)
 	update_particles(scaled_delta)
 	update_mowers(scaled_delta)
 	cleanup_entities()
@@ -317,6 +555,23 @@ func _process(delta: float) -> void:
 func finish_level() -> void:
 	game_state = "win"
 	high_score = maxi(high_score, sun_points)
+	var replaying_completed_level := current_level<unlocked_level or campaign_completed
+	# 终场最后一只僵尸掉落的钱币也必须结算，避免胜利界面盖住后无法拾取。
+	for coin in coins:
+		if not coin.dead: collect_coin(coin)
+	mower_bonus_count = 0
+	for mower in mowers:
+		if not mower.used and not mower.active:
+			mower_bonus_count += 1
+	var mower_money := mower_bonus_count*100
+	money += mower_money
+	level_money_earned += mower_money
+	var first_money_bag := String(LEVEL_DATA[current_level].reward)=="money_bag" and not claimed_money_bags.has(current_level)
+	if replaying_completed_level or first_money_bag:
+		if first_money_bag: claimed_money_bags[current_level] = true
+		reward_bag_awarded = true
+		money += 100
+		level_money_earned += 100
 	if current_level < LEVEL_DATA.size():
 		unlocked_level = maxi(unlocked_level, current_level + 1)
 	else:
@@ -336,7 +591,7 @@ func update_spawning(delta: float) -> void:
 			big_wave_warning = true
 			wave_banner_time = 3.2
 			show_message("一大波僵尸正在接近！", 3.0)
-			spawn_clock = 2.5
+			spawn_clock = 2.5*wave_interval_scale()
 			spawn_clock_start = spawn_clock
 			return
 		var is_final_wave := current_wave == wave_plan.size() - 1
@@ -346,47 +601,54 @@ func update_spawning(delta: float) -> void:
 		if is_final_wave:
 			final_wave_sent = true
 			return
-		spawn_clock = 10.0 + rng.randf_range(-1.0, 1.5)
+		spawn_clock = next_wave_delay()
 		spawn_clock_start = spawn_clock
 		return
 	spawn_small_wave(current_wave, wave_plan[current_wave])
 	current_wave += 1
-	spawn_clock = 10.0 + rng.randf_range(-1.0, 1.5)
+	spawn_clock = next_wave_delay()
 	spawn_clock_start = spawn_clock
+
+func wave_interval_scale() -> float:
+	return float(LEVEL_DATA[current_level].get("wave_interval_scale",1.0))
+
+func next_wave_delay() -> float:
+	return (10.0+rng.randf_range(-1.0,1.5))*wave_interval_scale()
 
 func build_wave_plan(level: int) -> Array:
 	return WavePlanner.build(level, rng)
 
 func spawn_small_wave(wave_index: int, wave: Array) -> void:
 	var rows := [0, 1, 2, 3, 4]
-	if LEVEL_DATA[current_level].world == "荒地" and wave_index % 10 < 6:
+	if is_wasteland_level() and wave_index < 6:
 		rows = [0, 2, 4]
 	rows.shuffle()
 	var budget := wave_score(wave)
-	var spent := 0
+	var spent := 0.0
 	var spawned := 0
 	for i in wave.size():
 		var row: int = rows[i % rows.size()]
-		var cost := zombie_row_score(wave[i], row)
-		if spent + cost > budget:
+		var cost := zombie_row_score(wave[i],row,wave_index)
+		if spent+cost > budget:
 			continue
-		spawn_zombie(row, wave[i], 1260.0 + spawned * 18.0)
+		spawn_zombie(row,wave[i],1260.0+spawned*18.0)
 		spent += cost
 		spawned += 1
 
 func spawn_big_wave(wave: Array) -> void:
+	var wave_index := current_wave
 	spawn_zombie(2, "flag", 1160.0)
 	var rows := [0, 1, 2, 3, 4]
 	rows.shuffle()
 	var budget := wave_score(wave)
-	var spent := 0
+	var spent := 0.0
 	var spawned := 0
 	for i in wave.size():
 		var row: int = rows[i % ROWS]
-		var cost := zombie_row_score(wave[i], row)
-		if spent + cost > budget:
+		var cost := zombie_row_score(wave[i],row,wave_index)
+		if spent+cost > budget:
 			continue
-		spawn_zombie(row, wave[i], 1210.0 + spawned * 22.0)
+		spawn_zombie(row,wave[i],1210.0+spawned*22.0)
 		spent += cost
 		spawned += 1
 
@@ -396,23 +658,31 @@ func wave_score(wave: Array) -> int:
 		total += int(ZOMBIE_POINTS[kind])
 	return total
 
-func zombie_row_score(kind: String, row: int) -> int:
-	var score := int(ZOMBIE_POINTS[kind])
+func zombie_row_score(kind: String, row: int, wave_index: int) -> float:
+	var score := float(ZOMBIE_POINTS[kind])
 	if is_wasteland_level() and row % 2 == 1:
-		score *= 2
+		# 第一大波（第10个小波）结束后降低荒地行的额外占分，
+		# 让后续尸群数量增加，但荒地行仍比草地行更昂贵。
+		score *= 2.0 if wave_index < 10 else 1.5
 	return score
 
 func spawn_zombie(row: int, kind: String, at_x := 1260.0) -> void:
 	var stats: Dictionary = {
 		"normal":{"hp":190.0,"speed":15.0}, "cone":{"hp":560.0,"speed":15.0},
 		"bucket":{"hp":1290.0,"speed":15.0}, "runner":{"hp":160.0,"speed":35.0},
-		"flag":{"hp":190.0,"speed":15.0}
+		"flag":{"hp":190.0,"speed":15.0}, "kart":{"hp":500.0,"speed":20.0},
+		"imp":{"hp":190.0,"speed":25.0}, "swing":{"hp":300.0,"speed":17.0},
+		"charger":{"hp":1690.0,"speed":25.0}
 	}[kind]
-	zombies.append({"row":row,"x":at_x + rng.randf_range(0.0, 70.0),"hp":stats.hp,"max_hp":stats.hp,
+	zombies.append({"id":next_zombie_id,"row":row,"draw_row":float(row),"x":at_x + rng.randf_range(0.0, 70.0),"hp":stats.hp,"max_hp":stats.hp,
 		"speed":stats.speed,"kind":kind,"attack":0.0,"slow":0.0,"dead":false,"anim":rng.randf_range(0.0, 5.0),
-		"biting":false,"walking":true,"arm_lost":false,"armor_lost":false})
+		"biting":false,"walking":true,"rooted":false,"swing_clock":rng.randf_range(4.5,7.0),
+		"arm_lost":false,"armor_lost":false})
+	next_zombie_id += 1
 
 func update_plants(delta: float) -> void:
+	for z in zombies:
+		z.rooted = false
 	for p in plants:
 		p.timer -= delta
 		p.anim += delta
@@ -421,12 +691,34 @@ func update_plants(delta: float) -> void:
 				if p.timer <= 0.0:
 					spawn_sun(cell_center(p.col, p.row) + Vector2(0, -25), false)
 					p.timer = SUNFLOWER_INTERVAL
-			"pea", "snow":
+			"pea", "snow", "cactus":
 				if p.timer <= 0.0 and has_zombie_ahead(p.row, cell_center(p.col, p.row).x):
 					projectiles.append({"row":p.row,"x":cell_center(p.col,p.row).x + 23.0,
 						"y":cell_center(p.col,p.row).y - 9.0,"speed":235.0,"damage":PLANT_DATA[p.kind].damage,
-						"snow":p.kind == "snow","dead":false})
+						"snow":p.kind == "snow","piercing":p.kind=="cactus","hit_ids":[],
+						"max_hits":PLANT_DATA.cactus.max_targets if p.kind=="cactus" else 1,"dead":false})
 					p.timer = PLANT_DATA[p.kind].interval
+			"needle":
+				if p.timer <= 0.0:
+					var target = find_needle_target(p)
+					if target != null:
+						var center := cell_center(p.col,p.row)
+						projectiles.append({"row":target.row,"x":center.x,"y":center.y-9.0,
+							"speed":360.0,"damage":PLANT_DATA.needle.damage,"snow":false,
+							"needle":true,"target":target,"dead":false})
+						p.timer = PLANT_DATA.needle.interval
+			"slime":
+				var target = get_zombie_by_id(int(p.get("slime_target_id",-1)))
+				if not slime_target_valid(p,target):
+					p.slime_target_id = -1
+					target = find_slime_target(p)
+					if target != null:
+						p.slime_target_id = target.id
+				if target != null:
+					target.rooted = true
+					if p.timer <= 0.0:
+						damage_zombie(target,PLANT_DATA.slime.damage)
+						p.timer = PLANT_DATA.slime.interval
 			"cherry":
 				if p.timer <= 0.0 and not p.dead:
 					explode_cherry(p)
@@ -446,6 +738,52 @@ func update_plants(delta: float) -> void:
 					p.respawn_timer -= delta
 					if p.respawn_timer <= 0.0:
 						spawn_yam_minion(p)
+			"squash":
+				update_squash(p,delta)
+
+func find_squash_target(p: Dictionary):
+	var center_x := cell_center(p.col,p.row).x
+	var left_edge := center_x-CELL_W
+	var right_edge := center_x+CELL_W
+	var result = null
+	for z in zombies:
+		if z.dead or z.row!=p.row or z.x<left_edge or z.x>right_edge:
+			continue
+		if result==null or absf(z.x-center_x)<absf(result.x-center_x):
+			result = z
+	return result
+
+func update_squash(p: Dictionary, delta: float) -> void:
+	var phase := int(p.get("squash_phase",0))
+	if phase==0:
+		var target = find_squash_target(p)
+		if target==null:
+			return
+		p.squash_phase = 1
+		p.squash_clock = 0.16
+		p.squash_target_id = target.id
+		p.squash_target_x = target.x
+		play_sfx(230.0,0.08,0.10,"square")
+		return
+	p.squash_clock -= delta
+	var tracked = get_zombie_by_id(int(p.get("squash_target_id",-1)))
+	if tracked!=null and tracked.row==p.row:
+		p.squash_target_x = tracked.x
+	if phase==1 and p.squash_clock<=0.0:
+		p.squash_phase = 2
+		p.squash_clock = 0.32
+	elif phase==2 and p.squash_clock<=0.0:
+		p.squash_phase = 3
+		p.squash_clock = 0.22
+		var landing_x := float(p.squash_target_x)
+		for z in zombies:
+			if not z.dead and z.row==p.row and absf(z.x-landing_x)<=58.0:
+				damage_zombie(z,PLANT_DATA.squash.damage)
+		burst(Vector2(landing_x,cell_center(p.col,p.row).y+25.0),Color("#b5c76b"),18)
+		shake = 0.8
+		play_sfx(88.0,0.22,0.30,"noise")
+	elif phase==3 and p.squash_clock<=0.0:
+		p.dead = true
 
 func get_yam_minion(owner: Dictionary):
 	for minion in yam_minions:
@@ -481,11 +819,8 @@ func update_yam_minions(delta: float) -> void:
 					target = z
 					target_distance = distance
 		if target != null:
-			target.hp -= PLANT_DATA.yam_guard.damage * delta
+			damage_zombie(target,PLANT_DATA.yam_guard.damage*delta)
 			minion.attack_flash = 0.12
-			update_zombie_armor(target)
-			if target.hp <= 0.0:
-				kill_zombie(target)
 		else:
 			minion.hp = minf(minion.max_hp, minion.hp + PLANT_DATA.yam_guard.heal * delta)
 
@@ -495,13 +830,54 @@ func has_zombie_ahead(row: int, x: float) -> bool:
 			return true
 	return false
 
+func get_zombie_by_id(id: int):
+	if id < 0:
+		return null
+	for z in zombies:
+		if not z.dead and int(z.get("id",-1))==id:
+			return z
+	return null
+
+func slime_target_valid(p: Dictionary, target) -> bool:
+	if target==null or target.dead or target.kind=="kart" or target.row!=p.row or target.get("rooted",false):
+		return false
+	var radius: int = PLANT_DATA.slime.column_radius
+	var left_edge := BOARD_X+float(p.col-radius)*CELL_W
+	var right_edge := BOARD_X+float(p.col+radius+1)*CELL_W
+	return target.x>=left_edge and target.x<right_edge
+
+func find_slime_target(p: Dictionary):
+	var result = null
+	var radius: int = PLANT_DATA.slime.column_radius
+	var left_edge := BOARD_X+float(p.col-radius)*CELL_W
+	var right_edge := BOARD_X+float(p.col+radius+1)*CELL_W
+	for z in zombies:
+		if z.dead or z.kind=="kart" or z.row!=p.row or z.get("rooted",false) or z.x<left_edge or z.x>=right_edge:
+			continue
+		if result==null or z.x<result.x:
+			result = z
+	return result
+
+func find_needle_target(p: Dictionary):
+	var target = null
+	var column_radius: int = PLANT_DATA.needle.column_radius
+	var left_edge := BOARD_X + float(p.col-column_radius)*CELL_W
+	var right_edge := BOARD_X + float(p.col+column_radius+1)*CELL_W
+	for z in zombies:
+		if z.dead or absi(int(z.row) - int(p.row)) != 1:
+			continue
+		# 上下相邻行各覆盖正对格和左右各两格，共五格。
+		if z.x < left_edge or z.x >= right_edge:
+			continue
+		if target == null or z.x < target.x:
+			target = z
+	return target
+
 func explode_cherry(p: Dictionary) -> void:
 	var center := cell_center(p.col, p.row)
 	for z in zombies:
 		if not z.dead and absf(z.row - p.row) <= 1 and absf(z.x - center.x) < 155.0:
-			z.hp -= PLANT_DATA.cherry.damage
-			update_zombie_armor(z)
-			if z.hp <= 0.0: kill_zombie(z)
+			damage_zombie(z,PLANT_DATA.cherry.damage)
 	for i in 36:
 		var a := rng.randf_range(0, TAU)
 		particles.append({"pos":center,"vel":Vector2(cos(a),sin(a))*rng.randf_range(60,220),
@@ -522,9 +898,7 @@ func explode_mine(p: Dictionary) -> void:
 	var center := cell_center(p.col, p.row)
 	for z in zombies:
 		if not z.dead and z.row == p.row and absf(z.x - center.x) < 82.0:
-			z.hp -= PLANT_DATA.mine.damage
-			update_zombie_armor(z)
-			if z.hp <= 0.0: kill_zombie(z)
+			damage_zombie(z,PLANT_DATA.mine.damage)
 	for i in 28:
 		var a := rng.randf_range(0, TAU)
 		particles.append({"pos":center,"vel":Vector2(cos(a),sin(a))*rng.randf_range(50,185),
@@ -536,30 +910,82 @@ func explode_mine(p: Dictionary) -> void:
 
 func update_projectiles(delta: float) -> void:
 	for pr in projectiles:
+		if pr.get("needle",false):
+			var target = pr.get("target")
+			if target == null or target.dead:
+				pr.dead = true
+				continue
+			var target_pos := Vector2(target.x,BOARD_Y+target.row*CELL_H+CELL_H/2.0-22.0)
+			var projectile_pos := Vector2(pr.x,pr.y).move_toward(target_pos,pr.speed*delta)
+			pr.x = projectile_pos.x
+			pr.y = projectile_pos.y
+			pr.row = target.row
+			if projectile_pos.distance_to(target_pos) <= 18.0:
+				damage_zombie(target,pr.damage)
+				pr.dead = true
+				burst(projectile_pos,Color("#c77ae5"),5)
+				play_sfx(440.0,0.035,0.07,"square")
+			continue
 		pr.x += pr.speed * delta
 		if pr.x > W + 20: pr.dead = true
 		for z in zombies:
-			if not pr.dead and not z.dead and z.row == pr.row and absf(z.x - pr.x) < 25.0:
-				z.hp -= pr.damage
-				update_zombie_armor(z)
-				if pr.snow: z.slow = 3.0
-				pr.dead = true
+			var already_hit: bool = bool(pr.get("piercing",false)) and int(z.get("id",-1)) in pr.hit_ids
+			if not pr.dead and not z.dead and not already_hit and z.row == pr.row and absf(z.x - pr.x) < 25.0:
+				damage_zombie(z,pr.damage)
+				if pr.snow and not z.dead: z.slow = 3.0
+				if pr.get("piercing",false):
+					pr.hit_ids.append(int(z.get("id",-1)))
+					if pr.hit_ids.size() >= int(pr.get("max_hits",3)):
+						pr.dead = true
+				else:
+					pr.dead = true
 				burst(Vector2(pr.x, pr.y), Color("#8ce8f0") if pr.snow else Color("#9bea55"), 5)
 				play_sfx(390.0 if pr.snow else 310.0, 0.045, 0.08, "square")
-				if z.hp <= 0.0: kill_zombie(z)
 
 func update_zombies(delta: float) -> void:
 	for z in zombies:
 		if z.dead: continue
 		z.anim += delta
 		z.slow = maxf(0.0, z.slow - delta)
-		if z.hp <= 100.0 and not z.get("arm_lost", false):
+		z.draw_row = move_toward(float(z.get("draw_row",z.row)),float(z.row),delta*3.2)
+		var rooted: bool = bool(z.get("rooted",false)) and z.kind!="kart"
+		if z.kind=="kart":
+			z.rooted = false
+		if z.kind=="swing" and not rooted:
+			z.swing_clock -= delta
+			if z.swing_clock <= 0.0:
+				var previous_row: int = z.row
+				var adjacent_rows: Array[int] = []
+				if z.row>0: adjacent_rows.append(z.row-1)
+				if z.row<ROWS-1: adjacent_rows.append(z.row+1)
+				z.row = adjacent_rows[rng.randi_range(0,adjacent_rows.size()-1)]
+				z.swing_clock = rng.randf_range(4.5,7.0)
+				burst(Vector2(z.x,BOARD_Y+z.row*CELL_H+CELL_H/2.0),Color("#c77bd2"),7)
+				if z.row<previous_row:
+					play_sfx(560.0,0.16,0.18,"sweep_up")
+				else:
+					play_sfx(720.0,0.16,0.18,"sweep_down")
+		if z.kind not in ["kart","imp"] and z.hp <= 100.0 and not z.get("arm_lost", false):
 			z.arm_lost = true
-			detached_arms.append({"pos":Vector2(z.x + 13.0, BOARD_Y + z.row * CELL_H + CELL_H/2.0 - 18.0),
+			detached_arms.append({"pos":Vector2(z.x + 13.0, BOARD_Y + z.row * CELL_H + CELL_H/2.0 - ZOMBIE_BOARD_LIFT - 18.0),
 				"vel":Vector2(34.0,-48.0),"angle":0.0,"spin":4.8,"life":1.35,"slow":z.slow > 0.0})
-		var target = plant_at_zombie(z)
+		if z.kind=="kart":
+			var crushed = plant_at_zombie(z)
+			if crushed != null:
+				crushed.dead = true
+				burst(Vector2(z.x,BOARD_Y+z.row*CELL_H+CELL_H/2.0),Color("#d39a55"),9)
+				play_sfx(105.0,0.13,0.16,"noise")
+			z.biting = false
+			z.walking = not rooted
+			var kart_slow_factor := 0.5 if z.slow>0.0 else 1.0
+			if not rooted:
+				z.x -= z.speed*kart_slow_factor*delta
+			if z.x < 115.0: game_state = "lose"
+			continue
+		# 定身会立刻中断啃咬；目标切换后也不能沿用上一帧的攻击状态。
+		var target = null if rooted else plant_at_zombie(z)
 		z.biting = target != null
-		z.walking = target == null
+		z.walking = target == null and not rooted
 		if target != null:
 			target.hp -= ZOMBIE_DPS * delta
 			z.attack -= delta
@@ -567,40 +993,80 @@ func update_zombies(delta: float) -> void:
 				z.attack = 0.7
 				burst(cell_center(target.col,target.row), Color("#cfa46e"), 3)
 			if target.hp <= 0.0: target.dead = true
-		else:
+		elif not rooted:
 			var slow_factor := 0.5 if z.slow > 0.0 else 1.0
 			z.x -= z.speed * slow_factor * delta
 		if z.x < 115.0:
 			game_state = "lose"
 
 func update_zombie_armor(z: Dictionary) -> void:
-	if z.kind not in ["cone","bucket"] or z.get("armor_lost",false) or z.hp > 190.0:
+	if z.kind not in ["cone","bucket","charger"] or z.get("armor_lost",false) or z.hp > 190.0:
 		return
 	z.armor_lost = true
-	var drop_y: float = BOARD_Y + float(z.row) * CELL_H + CELL_H/2.0 - 78.0
+	var drop_y: float = BOARD_Y + float(z.row) * CELL_H + CELL_H/2.0 - ZOMBIE_BOARD_LIFT - 78.0
 	dropped_armor.append({"kind":z.kind,"pos":Vector2(z.x-5.0,drop_y),
 		"vel":Vector2(rng.randf_range(-52.0,32.0),-92.0),"angle":0.0,
 		"spin":rng.randf_range(-5.5,5.5),"life":1.45})
 	burst(Vector2(z.x,drop_y),Color("#e9a34e") if z.kind=="cone" else Color("#aab4b6"),7)
-	play_sfx(185.0 if z.kind=="cone" else 125.0,0.11,0.12,"square")
+	play_sfx(185.0 if z.kind=="cone" else 110.0 if z.kind=="charger" else 125.0,0.11,0.12,"square")
 
 func plant_at_zombie(z: Dictionary):
 	for p in plants:
 		if not p.dead and p.row == z.row:
+			# 倭瓜一旦锁定目标就进入不可伤害的攻击过程；跳起中的倭瓜也不再
+			# 作为啃咬或车辆碾压的阻挡物。
+			if p.kind=="squash" and int(p.get("squash_phase",0))>0:
+				continue
 			var px := cell_center(p.col,p.row).x
-			if z.x > px - 30.0 and z.x < px + 42.0:
+			if z.x > px-30.0 and z.x < px+42.0:
 				return p
 	for minion in yam_minions:
 		if not minion.dead and minion.row == z.row:
 			var minion_x := cell_center(minion.col,minion.row).x
-			if z.x > minion_x - 30.0 and z.x < minion_x + 42.0:
+			if z.x > minion_x-30.0 and z.x < minion_x+42.0:
 				return minion
 	return null
 
+func release_imp(z: Dictionary) -> void:
+	z.kind = "imp"
+	z.hp = 190.0
+	z.max_hp = 190.0
+	z.speed = 25.0
+	z.slow = 0.0
+	z.attack = 0.0
+	z.biting = false
+	z.walking = true
+	z.rooted = false
+	z.arm_lost = false
+	z.armor_lost = false
+	burst(Vector2(z.x,BOARD_Y+z.row*CELL_H+CELL_H/2.0),Color("#d95f49"),12)
+	play_sfx(170.0,0.12,0.14,"square")
+
+func damage_zombie(z: Dictionary, amount: float) -> void:
+	if z.dead or amount <= 0.0:
+		return
+	var remaining := amount
+	if z.kind=="kart":
+		if remaining < z.hp:
+			z.hp -= remaining
+			return
+		remaining -= z.hp
+		release_imp(z)
+		if remaining <= 0.0:
+			return
+	z.hp -= remaining
+	update_zombie_armor(z)
+	if z.hp <= 0.0:
+		kill_zombie(z)
+
 func kill_zombie(z: Dictionary) -> void:
 	if z.dead: return
+	if z.kind=="kart":
+		release_imp(z)
+		return
 	update_zombie_armor(z)
 	z.dead = true
+	try_drop_coin(Vector2(z.x,BOARD_Y+z.row*CELL_H+CELL_H/2.0-35.0))
 	burst(Vector2(z.x, BOARD_Y + z.row * CELL_H + CELL_H/2.0), Color("#8fbd70"), 12)
 	play_sfx(145.0, 0.12, 0.11, "square")
 
@@ -631,6 +1097,44 @@ func collect_sun(s: Dictionary) -> void:
 	sun_points += 25
 	burst(s.pos, Color("#ffe56b"), 8)
 	play_sfx(880.0, 0.11, 0.14, "sine")
+
+func try_drop_coin(pos: Vector2) -> void:
+	var kind := coin_kind_for_roll(rng.randf())
+	if kind!="": spawn_coin(pos,kind)
+
+func coin_kind_for_roll(roll: float) -> String:
+	if roll<0.02: return "gold"
+	if roll<0.10: return "silver"
+	return ""
+
+func spawn_coin(pos: Vector2, kind: String) -> void:
+	coins.append({"pos":pos,"target_y":minf(660.0,pos.y+rng.randf_range(25.0,55.0)),
+		"vel":Vector2(rng.randf_range(-24.0,24.0),-115.0),"kind":kind,
+		"value":100 if kind=="gold" else 10,"life":14.0,"pulse":rng.randf_range(0.0,2.0),"dead":false})
+
+func update_coins(delta: float) -> void:
+	for coin in coins:
+		if coin.dead: continue
+		coin.life -= delta
+		coin.pulse += delta
+		if coin.vel.y!=0.0 or coin.pos.y<float(coin.target_y)-0.5:
+			coin.pos += coin.vel*delta
+			coin.vel.y += 420.0*delta
+			if coin.pos.y>=float(coin.target_y) and coin.vel.y>0.0:
+				coin.pos.y = coin.target_y
+				coin.vel = Vector2.ZERO
+		if auto_collect_sun and coin.pulse>0.8 and coin.vel==Vector2.ZERO and absf(coin.pos.y-float(coin.target_y))<1.0:
+			collect_coin(coin)
+		if coin.life<=0.0: coin.dead = true
+
+func collect_coin(coin: Dictionary) -> void:
+	if coin.dead: return
+	coin.dead = true
+	money += int(coin.value)
+	level_money_earned += int(coin.value)
+	burst(Vector2(coin.pos),Color("#ffe071") if coin.kind=="gold" else Color("#dce7e5"),7)
+	play_sfx(1040.0 if coin.kind=="gold" else 820.0,0.10,0.13,"sine")
+	save_game()
 
 func update_mowers(delta: float) -> void:
 	for m in mowers:
@@ -679,6 +1183,8 @@ func cleanup_entities() -> void:
 		if projectiles[i].dead: projectiles.remove_at(i)
 	for i in range(suns.size() - 1, -1, -1):
 		if suns[i].dead: suns.remove_at(i)
+	for i in range(coins.size()-1,-1,-1):
+		if coins[i].dead: coins.remove_at(i)
 	for i in range(particles.size() - 1, -1, -1):
 		if particles[i].life <= 0.0: particles.remove_at(i)
 	for i in range(yam_minions.size() - 1, -1, -1):
@@ -716,7 +1222,10 @@ func setup_sfx_audio() -> void:
 		[310.0, 0.045, 0.08, "square"], [185.0, 0.11, 0.12, "square"],
 		[125.0, 0.11, 0.12, "square"], [145.0, 0.12, 0.11, "square"],
 		[880.0, 0.11, 0.14, "sine"], [92.0, 0.45, 0.3, "noise"],
-		[740.0, 0.28, 0.22, "sine"]
+		[740.0, 0.28, 0.22, "sine"],
+		[560.0, 0.16, 0.18, "sweep_up"], [720.0, 0.16, 0.18, "sweep_down"],
+		[1040.0,0.10,0.13,"sine"], [820.0,0.10,0.13,"sine"],
+		[920.0,0.14,0.16,"sine"], [760.0,0.12,0.14,"sine"]
 	]
 	for sound in common_sounds:
 		get_sfx_stream(sound[0], sound[1], sound[2], sound[3])
@@ -734,7 +1243,53 @@ func play_sfx(frequency: float, duration: float, strength: float, wave := "sine"
 func start_music() -> void:
 	music_player = AudioStreamPlayer.new()
 	add_child(music_player)
-	music_player.stream = AudioSynth.create_music()
+	update_music_volume()
+	switch_music("menu")
+	# 两首关卡音乐在后台预先合成。玩家进入选关和选卡期间不会因首次
+	# 生成几十秒的波形而卡住主线程。
+	music_prewarm_thread = Thread.new()
+	music_prewarm_thread.start(build_level_music_cache)
+
+func build_level_music_cache() -> Dictionary:
+	return {
+		"frontyard":AudioSynth.create_music("frontyard"),
+		"wasteland":AudioSynth.create_music("wasteland")
+	}
+
+func collect_music_prewarm(wait_for_completion := false) -> void:
+	if music_prewarm_thread==null:
+		return
+	if music_prewarm_thread.is_alive() and not wait_for_completion:
+		return
+	var generated: Dictionary = music_prewarm_thread.wait_to_finish()
+	for track in generated:
+		music_cache[track] = generated[track]
+	music_prewarm_thread = null
+
+func desired_music_track() -> String:
+	if game_state in ["prepare","play","win","lose"]:
+		return "wasteland" if is_wasteland_level() else "frontyard"
+	return "menu"
+
+func update_music_context() -> void:
+	collect_music_prewarm()
+	var desired := desired_music_track()
+	if desired!=current_music_track:
+		switch_music(desired)
+
+func switch_music(track: String) -> void:
+	if music_player==null or track==current_music_track:
+		return
+	if not music_cache.has(track):
+		# 后台尚未完成时先延续当前音乐，下一帧会再次检查并自动切换。
+		if music_prewarm_thread!=null and music_prewarm_thread.is_alive():
+			return
+		collect_music_prewarm()
+	if not music_cache.has(track):
+		music_cache[track] = AudioSynth.create_music(track)
+	music_player.stop()
+	music_player.stream = music_cache[track]
+	current_music_track = track
 	update_music_volume()
 	music_player.play()
 
@@ -757,6 +1312,15 @@ func load_settings() -> void:
 	unlocked_level = loaded.unlocked_level
 	plant_keys = loaded.plant_keys
 	shovel_key = loaded.shovel_key
+	# A、S现在固定给关卡道具；兼容旧存档中可能存在的自定义冲突绑定。
+	var fallback_keys := [KEY_1,KEY_2,KEY_3,KEY_4,KEY_Q,KEY_W,KEY_E,KEY_R]
+	for i in plant_keys.size():
+		if plant_keys[i] in [KEY_A,KEY_S]:
+			for fallback in fallback_keys:
+				if fallback not in plant_keys and fallback!=shovel_key:
+					plant_keys[i] = fallback
+					break
+	if shovel_key in [KEY_A,KEY_S]: shovel_key = KEY_D
 
 func save_settings() -> void:
 	Persistence.save_settings(SETTINGS_PATH, {
@@ -768,17 +1332,22 @@ func save_settings() -> void:
 func load_save_game() -> void:
 	var loaded := Persistence.load_campaign(SAVE_PATH, {
 		"unlocked_level":unlocked_level, "high_score":high_score,
-		"campaign_completed":campaign_completed
+		"campaign_completed":campaign_completed,"money":money,
+		"item_inventory":item_inventory,"claimed_money_bags":claimed_money_bags
 	}, LEVEL_DATA)
 	unlocked_level = loaded.unlocked_level
 	high_score = loaded.high_score
 	campaign_completed = loaded.campaign_completed
 	saved_loadouts = loaded.saved_loadouts
+	money = loaded.money
+	item_inventory = loaded.item_inventory
+	claimed_money_bags = loaded.claimed_money_bags
 
 func save_game() -> void:
 	Persistence.save_campaign(SAVE_PATH, {
 		"unlocked_level":unlocked_level, "high_score":high_score,
-		"campaign_completed":campaign_completed, "saved_loadouts":saved_loadouts
+		"campaign_completed":campaign_completed, "saved_loadouts":saved_loadouts,
+		"money":money,"item_inventory":item_inventory,"claimed_money_bags":claimed_money_bags
 	}, LEVEL_DATA.size())
 
 func apply_saved_display_mode() -> void:
@@ -786,18 +1355,18 @@ func apply_saved_display_mode() -> void:
 		get_window().mode = Window.MODE_EXCLUSIVE_FULLSCREEN
 
 func _exit_tree() -> void:
+	collect_music_prewarm(true)
 	if not Engine.is_embedded_in_editor() and DisplayServer.get_name() != "headless":
 		var mode := get_window().mode
 		fullscreen_enabled = mode == Window.MODE_FULLSCREEN or mode == Window.MODE_EXCLUSIVE_FULLSCREEN
 	save_settings()
 	save_game()
 
-func key_name(keycode: int) -> String:
-	var result := OS.get_keycode_string(keycode)
-	return result if result != "" else "未设置"
-
 func assign_key(target: int, new_key: int) -> void:
 	if new_key == 0:
+		return
+	if new_key in [KEY_A,KEY_S]:
+		show_message("A 和 S 已用于关卡道具",1.5)
 		return
 	var old_key: int = shovel_key if target == -1 else plant_keys[target]
 	for i in plant_keys.size():
@@ -835,18 +1404,56 @@ func select_plant_slot(index: int) -> void:
 	else:
 		show_message("植物还在冷却" if cooldowns.get(kind,0.0) > 0 else "阳光不足", 1.1)
 
-func cell_center(col: int, row: int) -> Vector2:
-	return Vector2(BOARD_X + col * CELL_W + CELL_W/2.0, BOARD_Y + row * CELL_H + CELL_H/2.0)
+func activate_item(kind: String) -> void:
+	if int(item_inventory.get(kind,0))<=0:
+		show_message("没有%s"%ITEM_DATA[kind].name,1.2)
+		return
+	if kind=="air_bomb":
+		selected = "" if selected=="item_air_bomb" else "item_air_bomb"
+		play_sfx(510.0,0.07,0.10,"square")
+	else:
+		item_inventory.sun_pack -= 1
+		sun_points += 500
+		selected = ""
+		show_message("阳光 +500",1.3)
+		burst(Vector2(570,105),Color("#ffe56b"),14)
+		play_sfx(920.0,0.14,0.16,"sine")
+		save_game()
 
-func level_title(level: int) -> String:
-	var data: Dictionary = LEVEL_DATA[level]
-	return "%s-第%d关" % [data.world, data.stage]
+func use_air_bomb(col: int,row: int) -> void:
+	if int(item_inventory.air_bomb)<=0:
+		selected = ""
+		return
+	item_inventory.air_bomb -= 1
+	var center := cell_center(col,row)
+	for z in zombies:
+		if not z.dead and absi(int(z.row)-row)<=1 and absf(z.x-center.x)<155.0:
+			damage_zombie(z,PLANT_DATA.cherry.damage)
+	for i in 34:
+		var angle := rng.randf_range(0.0,TAU)
+		particles.append({"pos":center,"vel":Vector2(cos(angle),sin(angle))*rng.randf_range(70.0,235.0),
+			"life":rng.randf_range(0.35,0.8),"max":0.8,"color":Color("#ffb23e"),"size":rng.randf_range(4.0,12.0)})
+	shake = 1.0
+	flash = 0.7
+	selected = ""
+	show_message("空投炸弹！",1.0)
+	play_sfx(105.0,0.36,0.42,"noise")
+	save_game()
 
-func is_wasteland_level() -> bool:
-	return LEVEL_DATA[current_level].world == "荒地"
-
-func is_plantable_cell(row: int) -> bool:
-	return not is_wasteland_level() or row % 2 == 0
+func purchase_item(kind: String) -> void:
+	var data: Dictionary = ITEM_DATA[kind]
+	var owned := int(item_inventory.get(kind,0))
+	if owned>=int(data.max_owned):
+		show_message("已达到持有上限",1.3)
+		return
+	if money<int(data.price):
+		show_message("资金不足",1.3)
+		return
+	money -= int(data.price)
+	item_inventory[kind] = owned+1
+	show_message("已购买%s"%data.name,1.3)
+	play_sfx(760.0,0.12,0.14,"sine")
+	save_game()
 
 func show_message(text: String, duration: float) -> void:
 	message = text
@@ -855,7 +1462,7 @@ func show_message(text: String, duration: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		var pressed_key := int(event.physical_keycode if event.physical_keycode != 0 else event.keycode)
-		if paused and pause_page == "keys" and binding_target != -99:
+		if (paused or game_state=="settings") and pause_page == "keys" and binding_target != -99:
 			if event.keycode == KEY_ESCAPE:
 				binding_target = -99
 			else:
@@ -863,6 +1470,14 @@ func _unhandled_input(event: InputEvent) -> void:
 			queue_redraw()
 			return
 		if game_state == "play" and not paused:
+			if pressed_key==KEY_A:
+				activate_item("air_bomb")
+				queue_redraw()
+				return
+			if pressed_key==KEY_S:
+				activate_item("sun_pack")
+				queue_redraw()
+				return
 			for i in plant_keys.size():
 				if pressed_key == plant_keys[i]:
 					select_plant_slot(i)
@@ -878,9 +1493,13 @@ func _unhandled_input(event: InputEvent) -> void:
 			if paused: pause_page = "main"
 		if event.keycode == KEY_F11: toggle_fullscreen()
 		if event.keycode == KEY_ESCAPE:
-			if game_state == "prepare": game_state = "title"
+			if game_state=="settings" and pause_page=="keys": pause_page = "more"
+			elif game_state=="settings" and pause_page=="more": pause_page = "main"
+			elif game_state=="settings": game_state = "title"
+			elif game_state == "prepare": game_state = "title"
 			elif game_state == "level_select": game_state = "title"
 			elif game_state == "almanac": game_state = "title"
+			elif game_state == "shop": game_state = "title"
 			elif game_state == "play" and paused and pause_page == "keys": pause_page = "more"
 			elif game_state == "play" and paused and pause_page == "more": pause_page = "main"
 			elif game_state == "play" and paused: paused = false
@@ -889,6 +1508,24 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
 		update_hover(event.position)
 	if event is InputEventMouseButton and event.pressed:
+		if event.button_index == MOUSE_BUTTON_WHEEL_UP or event.button_index == MOUSE_BUTTON_WHEEL_LEFT:
+			if game_state == "prepare" and Rect2(174,96,572,450).has_point(event.position):
+				scroll_prepare_pool(-1)
+			elif game_state == "level_select":
+				scroll_level_select(-1)
+			elif game_state == "almanac" and Rect2(50,150,540,450).has_point(event.position):
+				scroll_almanac(-1)
+			queue_redraw()
+			return
+		if event.button_index == MOUSE_BUTTON_WHEEL_DOWN or event.button_index == MOUSE_BUTTON_WHEEL_RIGHT:
+			if game_state == "prepare" and Rect2(174,96,572,450).has_point(event.position):
+				scroll_prepare_pool(1)
+			elif game_state == "level_select":
+				scroll_level_select(1)
+			elif game_state == "almanac" and Rect2(50,150,540,450).has_point(event.position):
+				scroll_almanac(1)
+			queue_redraw()
+			return
 		if event.button_index == MOUSE_BUTTON_RIGHT:
 			selected = ""
 		elif event.button_index == MOUSE_BUTTON_LEFT:
@@ -905,21 +1542,51 @@ func update_hover(pos: Vector2) -> void:
 
 func handle_click(pos: Vector2) -> void:
 	if game_state == "title":
-		if Rect2(370,480,250,72).has_point(pos):
+		if Rect2(175,480,200,72).has_point(pos):
 			game_state = "level_select"
+			level_select_offset = clampi(unlocked_level-LEVEL_SELECT_VISIBLE_COUNT,0,level_select_max_offset())
 			play_sfx(610.0,0.1,0.1,"square")
-		elif Rect2(660,480,250,72).has_point(pos):
+		elif Rect2(395,480,200,72).has_point(pos):
 			game_state = "almanac"
 			almanac_tab = "plants"
 			almanac_selected = 0
+			almanac_row_offset = 0
 			play_sfx(610.0, 0.1, 0.1, "square")
+		elif Rect2(615,480,200,72).has_point(pos):
+			if unlocked_level>=4:
+				game_state = "shop"
+				play_sfx(610.0,0.1,0.1,"square")
+		elif Rect2(835,480,200,72).has_point(pos):
+			game_state = "settings"
+			pause_page = "main"
+			binding_target = -99
+			play_sfx(610.0,0.1,0.1,"square")
+		return
+	if game_state == "settings":
+		handle_pause_click(pos)
+		return
+	if game_state == "shop":
+		if Rect2(50,635,190,58).has_point(pos):
+			game_state = "title"
+			return
+		var shop_kinds := ["air_bomb","sun_pack"]
+		for i in shop_kinds.size():
+			if Rect2(300+i*450,444,230,48).has_point(pos):
+				purchase_item(shop_kinds[i])
+				return
 		return
 	if game_state == "level_select":
 		if Rect2(50,635,190,58).has_point(pos):
 			game_state = "title"
 			return
+		if Rect2(1040,635,70,58).has_point(pos):
+			scroll_level_select(-1)
+			return
+		if Rect2(1125,635,70,58).has_point(pos):
+			scroll_level_select(1)
+			return
 		for i in LEVEL_DATA.size():
-			if level_select_rect(i).has_point(pos) and i+1 <= unlocked_level:
+			if i >= level_select_offset and i < level_select_offset+LEVEL_SELECT_VISIBLE_COUNT and level_select_rect(i).has_point(pos) and i+1 <= unlocked_level:
 				prepare_level(i+1)
 				return
 		return
@@ -930,10 +1597,12 @@ func handle_click(pos: Vector2) -> void:
 		handle_almanac_click(pos)
 		return
 	if game_state == "win" or game_state == "lose":
-		if Rect2(470,500,340,68).has_point(pos):
+		if Rect2(300,500,320,68).has_point(pos):
 			if game_state == "lose": prepare_level(current_level)
 			elif current_level < LEVEL_DATA.size(): prepare_level(current_level + 1)
-			else: game_state = "title"
+			else: prepare_level(current_level)
+		elif Rect2(660,500,320,68).has_point(pos):
+			game_state = "title"
 		return
 	if Rect2(1165,14,100,62).has_point(pos):
 		paused = not paused
@@ -943,6 +1612,10 @@ func handle_click(pos: Vector2) -> void:
 	if paused:
 		handle_pause_click(pos)
 		return
+	for coin in coins:
+		if not coin.dead and Vector2(coin.pos).distance_to(pos)<30.0:
+			collect_coin(coin)
+			return
 	for s in suns:
 		if not s.dead and s.pos.distance_to(pos) < 34.0:
 			collect_sun(s)
@@ -960,7 +1633,14 @@ func handle_click(pos: Vector2) -> void:
 	if Rect2(175,14,105,62).has_point(pos):
 		selected = "shovel" if selected != "shovel" else ""
 		return
+	for i in 2:
+		if item_rect(i).has_point(pos):
+			activate_item("air_bomb" if i==0 else "sun_pack")
+			return
 	if hover_cell.x >= 0:
+		if selected=="item_air_bomb":
+			use_air_bomb(hover_cell.x,hover_cell.y)
+			return
 		var existing = get_plant(hover_cell.x, hover_cell.y)
 		if selected == "shovel":
 			var old = existing
@@ -985,35 +1665,41 @@ func handle_click(pos: Vector2) -> void:
 			else:
 				show_message("黄土地块不能种植植物",1.2)
 
-func prepare_card_rect(index: int) -> Rect2:
-	return Rect2(190.0 + (index % 2) * 180.0, 150.0 + int(index / 2) * 88.0, 170.0, 82.0)
-
 func handle_prepare_click(pos: Vector2) -> void:
 	if prepare_camera_x < 500.0 or prepare_returning:
 		return
-	if Rect2(190,575,170,55).has_point(pos):
+	if Rect2(280,575,170,55).has_point(pos):
 		game_state = "title"
 		return
-	for i in equipped_plants.size():
-		if card_rect(i).has_point(pos):
-			equipped_plants.remove_at(i)
-			play_sfx(430.0, 0.06, 0.07, "square")
-			return
-	for i in available_plants.size():
-		if prepare_card_rect(i).has_point(pos):
-			var kind: String = available_plants[i]
-			var selected_index := equipped_plants.find(kind)
-			if selected_index >= 0:
-				equipped_plants.remove_at(selected_index)
-			elif equipped_plants.size() < 8:
-				equipped_plants.append(kind)
-			play_sfx(570.0, 0.06, 0.07, "square")
-			return
-	if Rect2(380,575,170,55).has_point(pos):
+	if not has_fixed_loadout() and Rect2(674,105,27,31).has_point(pos):
+		scroll_prepare_pool(-1)
+		return
+	if not has_fixed_loadout() and Rect2(704,105,27,31).has_point(pos):
+		scroll_prepare_pool(1)
+		return
+	if not has_fixed_loadout():
+		for i in equipped_plants.size():
+			if card_rect(i).has_point(pos):
+				equipped_plants.remove_at(i)
+				play_sfx(430.0, 0.06, 0.07, "square")
+				return
+		for i in available_plants.size():
+			var logical_row := int(i/PREPARE_POOL_COLUMNS)
+			if logical_row >= prepare_pool_row_offset and logical_row < prepare_pool_row_offset+PREPARE_POOL_VISIBLE_ROWS and prepare_card_rect(i).has_point(pos):
+				var kind: String = available_plants[i]
+				var selected_index := equipped_plants.find(kind)
+				if selected_index >= 0:
+					equipped_plants.remove_at(selected_index)
+				elif equipped_plants.size() < 8:
+					equipped_plants.append(kind)
+				play_sfx(570.0, 0.06, 0.07, "square")
+				return
+	if Rect2(470,575,170,55).has_point(pos):
 		if equipped_plants.is_empty():
 			show_message("请至少选择一种植物", 1.5)
 			return
-		saved_loadouts[current_level] = equipped_plants.duplicate()
+		if not has_fixed_loadout():
+			saved_loadouts[current_level] = equipped_plants.duplicate()
 		save_game()
 		prepare_returning = true
 		play_sfx(720.0, 0.1, 0.1, "square")
@@ -1027,17 +1713,25 @@ func handle_almanac_click(pos: Vector2) -> void:
 	if Rect2(420, 88, 205, 52).has_point(pos):
 		almanac_tab = "plants"
 		almanac_selected = 0
+		almanac_row_offset = 0
 		play_sfx(570.0, 0.07, 0.08, "square")
 		return
 	if Rect2(655, 88, 205, 52).has_point(pos):
 		almanac_tab = "zombies"
 		almanac_selected = 0
+		almanac_row_offset = 0
 		play_sfx(390.0, 0.07, 0.08, "square")
+		return
+	if Rect2(552,165,32,36).has_point(pos):
+		scroll_almanac(-1)
+		return
+	if Rect2(552,556,32,36).has_point(pos):
+		scroll_almanac(1)
 		return
 	var count := PLANT_DATA.size() if almanac_tab == "plants" else ZOMBIE_INFO.size()
 	for i in count:
-		var item_rect := Rect2(70 + (i % 2) * 255, 175 + int(i / 2) * 125, 235, 105)
-		if item_rect.has_point(pos):
+		var logical_row := int(i/ALMANAC_COLUMNS)
+		if logical_row >= almanac_row_offset and logical_row < almanac_row_offset+ALMANAC_VISIBLE_ROWS and almanac_item_rect(i).has_point(pos):
 			almanac_selected = i
 			play_sfx(520.0 + i * 25.0, 0.06, 0.07, "square")
 			return
@@ -1049,12 +1743,14 @@ func place_plant(kind: String, col: int, row: int) -> void:
 	var first_timer: float = 4.0 if kind == "sunflower" else (data.interval if kind == "cherry" else (data.arm_time if kind == "mine" else 0.15))
 	plants.append({"kind":kind,"col":col,"row":row,"hp":data.hp,"max_hp":data.hp,
 		"timer":first_timer,"anim":rng.randf_range(0,2),"armed":false,"dead":false,
-		"deploy_dir":-1,"respawn_timer":0.6,"minion_active":false})
+		"deploy_dir":-1,"respawn_timer":0.6,"minion_active":false,"slime_target_id":-1,
+		"squash_phase":0,"squash_clock":0.0,"squash_target_id":-1,"squash_target_x":cell_center(col,row).x})
 	burst(cell_center(col,row),data.color,8)
 	play_sfx(220.0, 0.09, 0.1, "square")
 	selected = ""
 
 func handle_pause_click(pos: Vector2) -> void:
+	var standalone := game_state=="settings"
 	if pause_page == "more":
 		if Rect2(410, 180, 460, 74).has_point(pos):
 			pause_page = "keys"
@@ -1106,7 +1802,7 @@ func handle_pause_click(pos: Vector2) -> void:
 	if Rect2(700, 307, 160, 44).has_point(pos):
 		toggle_fullscreen()
 		return
-	if Rect2(360, 376, 150, 106).has_point(pos):
+	if not standalone and Rect2(360, 376, 150, 106).has_point(pos):
 		paused = false
 		game_state = "title"
 		selected = ""
@@ -1115,765 +1811,14 @@ func handle_pause_click(pos: Vector2) -> void:
 		pause_page = "more"
 		play_sfx(520.0, 0.1, 0.1, "square")
 		return
-	if Rect2(770, 376, 150, 106).has_point(pos):
+	if not standalone and Rect2(770, 376, 150, 106).has_point(pos):
 		prepare_level(current_level)
 		play_sfx(700.0, 0.11, 0.1, "square")
 		return
 	if Rect2(350, 520, 580, 70).has_point(pos):
-		paused = false
+		if standalone:
+			game_state = "title"
+		else:
+			paused = false
 		play_sfx(540.0, 0.08, 0.08, "square")
 		return
-
-func get_plant(col: int, row: int):
-	for p in plants:
-		if not p.dead and p.col == col and p.row == row: return p
-	return null
-
-func card_rect(index: int) -> Rect2:
-	return Rect2(7, 86 + index*78, 146, 72)
-
-func _draw() -> void:
-	if game_state == "title": draw_title_screen(); return
-	if game_state == "level_select": draw_level_select_screen(); return
-	if game_state == "almanac": draw_almanac_screen(); return
-	if game_state == "prepare": draw_prepare_screen(); return
-	var offset := Vector2(rng.randf_range(-4,4),rng.randf_range(-3,3)) if shake > 0 else Vector2.ZERO
-	draw_set_transform(offset)
-	draw_world()
-	draw_set_transform(Vector2.ZERO)
-	draw_ui()
-	if paused: draw_pause_overlay()
-	if game_state == "win" or game_state == "lose": draw_end_overlay()
-	if flash > 0: draw_rect(Rect2(0,0,W,H),Color(1,0.75,0.25,flash*0.22))
-
-func draw_title_screen() -> void:
-	draw_rect(Rect2(0,0,W,H),Color("#172f34"))
-	for y in range(0,720,32):
-		for x in range(0,1280,32):
-			if (x/32+y/32 as int)%2==0: draw_rect(Rect2(x,y,32,32),Color("#1b3839"))
-	draw_circle(Vector2(1100,110),72,Color("#ffe279"))
-	draw_circle(Vector2(1125,95),72,Color("#172f34"))
-	draw_string(ThemeDB.fallback_font,Vector2(250,210),"pvz:wasteland",HORIZONTAL_ALIGNMENT_CENTER,780,68,Color("#ffe064"))
-	draw_title_plant(Vector2(330,390))
-	draw_title_zombie(Vector2(950,390))
-	draw_string(ThemeDB.fallback_font,Vector2(640,320),"种植  •  防守  •  生存",HORIZONTAL_ALIGNMENT_CENTER,500,24,Color("#d5e9bb"))
-	draw_panel(Rect2(370,480,250,72),Color("#76b947"),Color("#d8ed74"),5)
-	draw_string(ThemeDB.fallback_font,Vector2(370,528),"冒险模式",HORIZONTAL_ALIGNMENT_CENTER,250,30,Color("#17351f"))
-	draw_panel(Rect2(660,480,250,72),Color("#4c8f79"),Color("#a8dfc0"),5)
-	draw_string(ThemeDB.fallback_font,Vector2(660,528),"图鉴",HORIZONTAL_ALIGNMENT_CENTER,250,27,Color.WHITE)
-	draw_string(ThemeDB.fallback_font,Vector2(0,602),"冒险进度：%s" % level_title(unlocked_level),HORIZONTAL_ALIGNMENT_CENTER,1280,19,Color("#d7e49b"))
-	draw_string(ThemeDB.fallback_font,Vector2(0,640),"所有画面与特效均由代码实时绘制",HORIZONTAL_ALIGNMENT_CENTER,1280,18,Color("#829b8d"))
-	draw_string(ThemeDB.fallback_font,Vector2(0,674),"1 2 3 4 Q W E R 选择植物  •  D 铲子  •  P / Esc 暂停",HORIZONTAL_ALIGNMENT_CENTER,1280,16,Color("#66847a"))
-
-func level_select_rect(index: int) -> Rect2:
-	return Rect2(40.0+index*305.0,250.0,270.0,190.0)
-
-func draw_level_select_screen() -> void:
-	draw_rect(Rect2(0,0,W,H),Color("#1b3533"))
-	# 前三个入口属于前院，第四个入口进入荒地。
-	draw_rect(Rect2(0,120,945,510),Color("#76bd4b"))
-	draw_rect(Rect2(945,120,335,510),Color("#b78a4e"))
-	for row in 5:
-		for col in 8:
-			if (row+col)%2==0:
-				draw_rect(Rect2(col*128,120+row*102,128,102),Color(0.12,0.25,0.06,0.08))
-	for row in 5:
-		if row % 2 == 0:
-			draw_rect(Rect2(945,120+row*102,335,102),Color("#c69b58"))
-	draw_rect(Rect2(0,0,W,120),Color("#203e38"))
-	draw_rect(Rect2(0,114,W,6),Color("#dcc86e"))
-	draw_string(ThemeDB.fallback_font,Vector2(0,62),"冒险地图",HORIZONTAL_ALIGNMENT_CENTER,1280,40,Color("#ffe879"))
-	draw_string(ThemeDB.fallback_font,Vector2(0,99),"选择关卡",HORIZONTAL_ALIGNMENT_CENTER,1280,19,Color("#bcd8c4"))
-	draw_string(ThemeDB.fallback_font,Vector2(40,180),"第一世界：前院",HORIZONTAL_ALIGNMENT_CENTER,880,28,Color("#f4ef9c"))
-	draw_string(ThemeDB.fallback_font,Vector2(955,180),"第二世界：荒地",HORIZONTAL_ALIGNMENT_CENTER,310,28,Color("#ffe0a0"))
-	for i in LEVEL_DATA.size():
-		var rect := level_select_rect(i)
-		var level := i+1
-		var unlocked := level <= unlocked_level
-		var completed := level < unlocked_level or campaign_completed
-		draw_panel(rect,Color("#507a50") if unlocked else Color("#46504a"),Color("#ffe278") if level==unlocked_level else Color("#91aa83"),5 if level==unlocked_level else 3)
-		draw_circle(Vector2(rect.position.x+rect.size.x/2,rect.position.y+62),38,Color("#f0cf59") if unlocked else Color("#68736d"))
-		draw_string(ThemeDB.fallback_font,Vector2(rect.position.x,rect.position.y+76),str(LEVEL_DATA[level].stage) if unlocked else "锁",HORIZONTAL_ALIGNMENT_CENTER,rect.size.x,30,Color("#28412d") if unlocked else Color("#b6c0ba"))
-		draw_string(ThemeDB.fallback_font,Vector2(rect.position.x,rect.position.y+128),level_title(level),HORIZONTAL_ALIGNMENT_CENTER,rect.size.x,24,Color.WHITE if unlocked else Color("#9aa59f"))
-		var status := "已完成" if completed else ("可进入" if unlocked else "未解锁")
-		draw_string(ThemeDB.fallback_font,Vector2(rect.position.x,rect.position.y+164),status,HORIZONTAL_ALIGNMENT_CENTER,rect.size.x,16,Color("#e9e59a") if unlocked else Color("#818c86"))
-	draw_panel(Rect2(50,635,190,58),Color("#496b60"),Color("#9abcb0"),3)
-	draw_string(ThemeDB.fallback_font,Vector2(50,673),"返回主菜单",HORIZONTAL_ALIGNMENT_CENTER,190,22,Color.WHITE)
-
-func draw_almanac_screen() -> void:
-	draw_rect(Rect2(0,0,W,H),Color("#172f34"))
-	for y in range(0,720,32):
-		for x in range(0,1280,32):
-			if int(x/32+y/32)%2==0: draw_rect(Rect2(x,y,32,32),Color("#1b3839"))
-	draw_string(ThemeDB.fallback_font,Vector2(0,66),"图鉴",HORIZONTAL_ALIGNMENT_CENTER,1280,42,Color("#ffe27a"))
-	draw_panel(Rect2(420,88,205,52),Color("#70a852") if almanac_tab=="plants" else Color("#385b52"),Color("#cce482"),3)
-	draw_string(ThemeDB.fallback_font,Vector2(420,122),"植物",HORIZONTAL_ALIGNMENT_CENTER,205,22,Color.WHITE)
-	draw_panel(Rect2(655,88,205,52),Color("#8a5950") if almanac_tab=="zombies" else Color("#385b52"),Color("#d6a078"),3)
-	draw_string(ThemeDB.fallback_font,Vector2(655,122),"僵尸",HORIZONTAL_ALIGNMENT_CENTER,205,22,Color.WHITE)
-	var entries: Array = PLANT_DATA.keys() if almanac_tab == "plants" else ZOMBIE_INFO.keys()
-	for i in entries.size():
-		draw_almanac_item(i,String(entries[i]))
-	draw_panel(Rect2(610,165,600,445),Color("#25443d"),Color("#83a99d"),4)
-	var selected_key := String(entries[clampi(almanac_selected,0,entries.size()-1)])
-	if almanac_tab == "plants": draw_plant_detail(selected_key)
-	else: draw_zombie_detail(selected_key)
-	draw_panel(Rect2(60,635,190,58),Color("#496b60"),Color("#9abcb0"),3)
-	draw_string(ThemeDB.fallback_font,Vector2(60,673),"返回主菜单",HORIZONTAL_ALIGNMENT_CENTER,190,22,Color.WHITE)
-	draw_string(ThemeDB.fallback_font,Vector2(280,672),"选择左侧条目查看详细信息",HORIZONTAL_ALIGNMENT_LEFT,430,16,Color("#829e95"))
-
-func draw_almanac_item(index: int, key: String) -> void:
-	var rect := Rect2(70 + (index % 2) * 255, 175 + int(index / 2) * 125, 235, 105)
-	var active := index == almanac_selected
-	var active_color := Color("#52754e") if almanac_tab=="plants" else Color("#75534d")
-	draw_panel(rect,active_color if active else Color("#294942"),Color("#f1dc78") if active else Color("#54766d"),4 if active else 2)
-	if almanac_tab == "plants":
-		draw_plant_shape(key,Vector2(rect.position.x+55,rect.position.y+53),0.65)
-		draw_string(ThemeDB.fallback_font,Vector2(rect.position.x+100,rect.position.y+43),PLANT_DATA[key].name,HORIZONTAL_ALIGNMENT_LEFT,125,18,Color.WHITE)
-		draw_string(ThemeDB.fallback_font,Vector2(rect.position.x+100,rect.position.y+72),"阳光 %d"%PLANT_DATA[key].cost,HORIZONTAL_ALIGNMENT_LEFT,125,14,Color("#ffe072"))
-	else:
-		draw_zombie_portrait(key,Vector2(rect.position.x+55,rect.position.y+67),0.55)
-		draw_string(ThemeDB.fallback_font,Vector2(rect.position.x+100,rect.position.y+43),ZOMBIE_INFO[key].name,HORIZONTAL_ALIGNMENT_LEFT,125,18,Color.WHITE)
-		draw_string(ThemeDB.fallback_font,Vector2(rect.position.x+100,rect.position.y+72),"生命 %d"%ZOMBIE_INFO[key].hp,HORIZONTAL_ALIGNMENT_LEFT,125,14,Color("#ef9a7e"))
-
-func draw_plant_detail(kind: String) -> void:
-	var data: Dictionary = PLANT_DATA[kind]
-	var info: Dictionary = PLANT_INFO[kind]
-	draw_plant_shape(kind,Vector2(755,290),1.65)
-	draw_string(ThemeDB.fallback_font,Vector2(850,220),data.name,HORIZONTAL_ALIGNMENT_LEFT,310,36,Color("#ffe27a"))
-	draw_string(ThemeDB.fallback_font,Vector2(850,253),info.role,HORIZONTAL_ALIGNMENT_LEFT,310,18,Color("#9cd18d"))
-	draw_detail_row("所需阳光",str(data.cost),286,Color("#ffe072"))
-	draw_detail_row("生命值",str(roundi(data.hp)),316,Color.WHITE)
-	draw_detail_row("冷却时间",str(data.cool)+" 秒",346,Color.WHITE)
-	var damage_label := "小红薯每秒伤害" if kind == "yam_guard" else "攻击力"
-	draw_detail_row(damage_label,str(roundi(data.damage)) if data.damage > 0 else "无",376,Color("#ff9d7e") if data.damage > 0 else Color("#819c94"))
-	if kind == "mine":
-		draw_detail_row("准备时间",str(data.arm_time)+" 秒",406,Color.WHITE)
-	elif kind == "yam_guard":
-		draw_detail_row("重生 / 空闲回血","%s秒 / %d" % [str(data.respawn),roundi(data.heal)],406,Color.WHITE)
-	else:
-		draw_detail_row("攻击间隔",str(data.interval)+" 秒" if data.interval > 0 else "无",406,Color.WHITE if data.interval > 0 else Color("#819c94"))
-	draw_line(Vector2(650,432),Vector2(1170,432),Color("#52776d"),2)
-	draw_string(ThemeDB.fallback_font,Vector2(650,469),info.summary,HORIZONTAL_ALIGNMENT_LEFT,520,18,Color("#e4eee9"))
-	draw_string(ThemeDB.fallback_font,Vector2(650,511),"使用建议",HORIZONTAL_ALIGNMENT_LEFT,120,17,Color("#ffe27a"))
-	draw_string(ThemeDB.fallback_font,Vector2(650,548),info.tip,HORIZONTAL_ALIGNMENT_LEFT,520,17,Color("#b7d1c8"))
-
-func draw_zombie_detail(kind: String) -> void:
-	var info: Dictionary = ZOMBIE_INFO[kind]
-	draw_zombie_portrait(kind,Vector2(755,350),1.55)
-	draw_string(ThemeDB.fallback_font,Vector2(850,220),info.name,HORIZONTAL_ALIGNMENT_LEFT,310,36,Color("#f0a17f"))
-	draw_string(ThemeDB.fallback_font,Vector2(850,253),info.role,HORIZONTAL_ALIGNMENT_LEFT,310,18,Color("#b9c899"))
-	draw_detail_row("生命值",str(info.hp),303,Color("#ef9a7e"))
-	draw_detail_row("移动速度",str(info.speed),338,Color.WHITE)
-	draw_detail_row("每秒伤害","%0.1f"%ZOMBIE_DPS,373,Color.WHITE)
-	draw_line(Vector2(650,415),Vector2(1170,415),Color("#52776d"),2)
-	draw_string(ThemeDB.fallback_font,Vector2(650,457),info.summary,HORIZONTAL_ALIGNMENT_LEFT,520,19,Color("#e4eee9"))
-	draw_string(ThemeDB.fallback_font,Vector2(650,510),"应对建议",HORIZONTAL_ALIGNMENT_LEFT,120,17,Color("#ffe27a"))
-	draw_string(ThemeDB.fallback_font,Vector2(650,548),info.tip,HORIZONTAL_ALIGNMENT_LEFT,520,17,Color("#b7d1c8"))
-
-func draw_detail_row(label: String, value: String, y: float, value_color: Color) -> void:
-	draw_string(ThemeDB.fallback_font,Vector2(850,y),label,HORIZONTAL_ALIGNMENT_LEFT,135,16,Color("#adc8c0"))
-	draw_string(ThemeDB.fallback_font,Vector2(1030,y),value,HORIZONTAL_ALIGNMENT_RIGHT,110,18,value_color)
-
-func draw_zombie_portrait(kind: String, pos: Vector2, scale: float) -> void:
-	draw_zombie({"x":pos.x,"draw_y":pos.y,"draw_scale":scale,"row":0,"anim":0.0,"slow":0.0,
-		"kind":kind,"hp":1.0,"max_hp":1.0,"walking":false,"biting":false,"hide_bar":true})
-
-func draw_prepare_screen() -> void:
-	draw_set_transform(Vector2(-prepare_camera_x, 0))
-	draw_world(true)
-	for z in preview_zombies: draw_zombie(z)
-	draw_set_transform(Vector2.ZERO)
-	draw_rect(Rect2(0,0,W,78),Color("#1d3935"))
-	draw_rect(Rect2(0,73,W,5),Color("#d2bd6b"))
-	draw_string(ThemeDB.fallback_font,Vector2(0,48),level_title(current_level),HORIZONTAL_ALIGNMENT_CENTER,1280,29,Color("#fff0a0"))
-	if prepare_camera_x > 360.0:
-		draw_plant_selection_panel()
-
-func draw_plant_selection_panel() -> void:
-	# 最左边沿用战斗中的八个纵向卡槽，位置和尺寸保持一致。
-	draw_rect(Rect2(0,78,160,H-78),Color("#203a34"))
-	draw_rect(Rect2(154,78,6,H-78),Color("#d0bd6f"))
-	for slot in 8:
-		if slot < equipped_plants.size():
-			draw_prepare_slot(slot,equipped_plants[slot])
-		else:
-			var empty_rect := card_rect(slot)
-			draw_panel(empty_rect,Color("#2b443b"),Color("#536e63"),2)
-			draw_panel(Rect2(empty_rect.position+Vector2(7,6),Vector2(20,20)),Color("#243c34"),Color("#607b70"),1)
-			draw_string(ThemeDB.fallback_font,empty_rect.position+Vector2(7,21),key_name(plant_keys[slot]),HORIZONTAL_ALIGNMENT_CENTER,20,11,Color("#8da59a"))
-	# 总植物池独立放在卡槽右侧。
-	draw_panel(Rect2(174,96,392,552),Color("#29483e"),Color("#e0ca72"),5)
-	draw_string(ThemeDB.fallback_font,Vector2(174,137),"选择植物",HORIZONTAL_ALIGNMENT_CENTER,392,27,Color("#fff0a0"))
-	for i in available_plants.size():
-		var rect := prepare_card_rect(i)
-		var kind: String = available_plants[i]
-		var chosen_index := equipped_plants.find(kind)
-		var chosen := chosen_index >= 0
-		draw_panel(rect,Color("#6a8e55") if chosen else Color("#3d5c50"),Color("#ffe274") if chosen else Color("#789488"),3)
-		draw_mini_plant(kind,rect.position+Vector2(40,46))
-		draw_string(ThemeDB.fallback_font,rect.position+Vector2(75,33),PLANT_DATA[kind].name,HORIZONTAL_ALIGNMENT_LEFT,79,15,Color.WHITE)
-		draw_string(ThemeDB.fallback_font,rect.position+Vector2(75,61),"阳光 %d" % PLANT_DATA[kind].cost,HORIZONTAL_ALIGNMENT_LEFT,79,13,Color("#ffe16d"))
-		if chosen:
-			draw_circle(rect.position+Vector2(154,14),12,Color("#ffe274"))
-			draw_string(ThemeDB.fallback_font,rect.position+Vector2(142,19),str(chosen_index+1),HORIZONTAL_ALIGNMENT_CENTER,24,11,Color("#294036"))
-	draw_string(ThemeDB.fallback_font,Vector2(190,510),"已选择 %d / 8" % equipped_plants.size(),HORIZONTAL_ALIGNMENT_LEFT,176,18,Color("#d6e9c3"))
-	draw_panel(Rect2(190,575,170,55),Color("#496a5e"),Color("#8faea3"),3)
-	draw_string(ThemeDB.fallback_font,Vector2(190,610),"返回主菜单",HORIZONTAL_ALIGNMENT_CENTER,170,18,Color.WHITE)
-	draw_panel(Rect2(380,575,170,55),Color("#7eb34f") if not equipped_plants.is_empty() else Color("#53645d"),Color("#e3ef92") if not equipped_plants.is_empty() else Color("#75877f"),4)
-	draw_string(ThemeDB.fallback_font,Vector2(380,610),"开始战斗" if not prepare_returning else "准备出发……",HORIZONTAL_ALIGNMENT_CENTER,170,19,Color("#183421") if not equipped_plants.is_empty() else Color("#9cad9f"))
-	if message_time > 0.0:
-		draw_string(ThemeDB.fallback_font,Vector2(190,552),message,HORIZONTAL_ALIGNMENT_CENTER,360,15,Color("#ffd080"))
-
-func draw_prepare_slot(index: int, kind: String) -> void:
-	var rect := card_rect(index)
-	var data: Dictionary = PLANT_DATA[kind]
-	draw_panel(rect,Color("#466b51"),Color("#d3c17a"),3)
-	draw_mini_plant(kind,rect.position+Vector2(36,35))
-	draw_string(ThemeDB.fallback_font,rect.position+Vector2(64,24),data.name,HORIZONTAL_ALIGNMENT_LEFT,73,12,Color.WHITE)
-	draw_string(ThemeDB.fallback_font,rect.position+Vector2(64,49),str(data.cost),HORIZONTAL_ALIGNMENT_LEFT,58,20,Color("#ffe16d"))
-	draw_panel(Rect2(rect.position+Vector2(7,6),Vector2(20,20)),Color("#243c34"),Color("#77927e"),1)
-	draw_string(ThemeDB.fallback_font,rect.position+Vector2(7,21),key_name(plant_keys[index]),HORIZONTAL_ALIGNMENT_CENTER,20,11,Color("#fff0a2"))
-	draw_string(ThemeDB.fallback_font,rect.position+Vector2(64,66),"已选择",HORIZONTAL_ALIGNMENT_LEFT,73,10,Color("#cfe5bd"))
-
-func draw_world(extended := false) -> void:
-	draw_rect(Rect2(0,0,W + (650.0 if extended else 0.0),H),Color("#9ed76b"))
-	# House and path
-	draw_rect(Rect2(0,120,BOARD_X,530),Color("#d6b174"))
-	for y in range(135,640,38): draw_line(Vector2(0,y),Vector2(BOARD_X,y),Color("#b68c59"),2)
-	draw_rect(Rect2(0,120,142,530),Color("#ad594b"))
-	draw_rect(Rect2(22,220,90,150),Color("#513c3f"))
-	draw_rect(Rect2(37,235,60,120),Color("#80bfd0"))
-	# 关卡准备镜头中的右侧是僵尸候场泥地，草坪仍严格只有 5×9。
-	if extended:
-		var staging_x := BOARD_X + COLS * CELL_W
-		draw_rect(Rect2(staging_x,90,685,630),Color("#8b754f"))
-		draw_rect(Rect2(staging_x,90,12,630),Color("#604b36"))
-		var rock_specs := [
-			[Vector2(42,82),Vector2(25,13)],[Vector2(166,147),Vector2(17,25)],
-			[Vector2(307,63),Vector2(31,17)],[Vector2(518,126),Vector2(21,12)],
-			[Vector2(92,276),Vector2(15,10)],[Vector2(249,238),Vector2(28,14)],
-			[Vector2(448,319),Vector2(18,27)],[Vector2(611,250),Vector2(32,16)],
-			[Vector2(48,471),Vector2(27,18)],[Vector2(193,414),Vector2(14,22)],
-			[Vector2(362,526),Vector2(35,15)],[Vector2(566,451),Vector2(20,13)],
-			[Vector2(646,580),Vector2(13,20)]
-		]
-		for i in rock_specs.size():
-			var center: Vector2 = Vector2(staging_x,90) + rock_specs[i][0]
-			var radius: Vector2 = rock_specs[i][1]
-			var stone := PackedVector2Array()
-			for point_index in 7:
-				var angle := TAU * float(point_index) / 7.0
-				var roughness := 0.84 + 0.16 * sin(float(point_index * 5 + i * 3))
-				stone.append(center + Vector2(cos(angle)*radius.x,sin(angle)*radius.y)*roughness)
-			draw_colored_polygon(stone,Color("#75654d"))
-			draw_line(center-radius*Vector2(0.45,0.25),center+radius*Vector2(0.28,-0.18),Color("#a18a60"),3)
-	# lawn checkerboard
-	var draw_cols := COLS
-	for row in ROWS:
-		for col in draw_cols:
-			var dirt_row := is_wasteland_level() and row % 2 == 1
-			var c := (Color("#c99b55") if (row+col)%2==0 else Color("#bc8c48")) if dirt_row else (Color("#75c84c") if (row+col)%2==0 else Color("#6cbd45"))
-			draw_rect(Rect2(BOARD_X+col*CELL_W,BOARD_Y+row*CELL_H,CELL_W,CELL_H),c)
-			var seam_color := Color(0.35,0.22,0.08,.28) if dirt_row else Color(0.2,0.45,0.15,.25)
-			draw_line(Vector2(BOARD_X+col*CELL_W,BOARD_Y+row*CELL_H+CELL_H-2),Vector2(BOARD_X+(col+1)*CELL_W,BOARD_Y+row*CELL_H+CELL_H-2),seam_color,2)
-	# dirt borders
-	draw_rect(Rect2(BOARD_X,BOARD_Y-12,draw_cols*CELL_W,12),Color("#77543b"))
-	draw_rect(Rect2(BOARD_X,BOARD_Y+ROWS*CELL_H,draw_cols*CELL_W,18),Color("#77543b"))
-	if hover_cell.x >= 0 and selected != "":
-		var ok := (get_plant(hover_cell.x,hover_cell.y)==null and is_plantable_cell(hover_cell.y)) or selected=="shovel"
-		draw_rect(Rect2(BOARD_X+hover_cell.x*CELL_W,BOARD_Y+hover_cell.y*CELL_H,CELL_W,CELL_H),Color(0.9,1,0.5,.28) if ok else Color(1,0.2,0.2,.28))
-	for m in mowers: draw_mower(m)
-	for p in plants: draw_plant(p)
-	for i in yam_minions.size():
-		draw_yam_minion(yam_minions[i], yam_stack_offset(i))
-	for z in zombies: draw_zombie(z)
-	for arm in detached_arms: draw_detached_arm(arm)
-	for armor in dropped_armor: draw_dropped_armor(armor)
-	for pr in projectiles: draw_projectile(pr)
-	for s in suns: draw_sun(s)
-	for p in particles:
-		draw_rect(Rect2(p.pos-Vector2.ONE*p.size/2.0,Vector2.ONE*p.size),Color(p.color,p.life/p.max))
-	if wave_banner_time > 0.0:
-		draw_wave_banner()
-
-func draw_ui() -> void:
-	# 左侧纵向操作栏和顶部轻量状态栏
-	draw_rect(Rect2(0,0,160,H),Color("#203a34"))
-	draw_rect(Rect2(154,0,6,H),Color("#d0bd6f"))
-	draw_rect(Rect2(160,0,W-160,90),Color("#233e36"))
-	draw_rect(Rect2(160,84,W-160,6),Color("#152c28"))
-	# 紧凑阳光计数器
-	draw_panel(Rect2(7,7,146,72),Color("#35594a"),Color("#e6d66a"),4)
-	draw_sun({"pos":Vector2(37,36),"pulse":0.0})
-	draw_string(ThemeDB.fallback_font,Vector2(65,43),str(sun_points),HORIZONTAL_ALIGNMENT_LEFT,77,25,Color.WHITE)
-	draw_string(ThemeDB.fallback_font,Vector2(62,67),"阳光",HORIZONTAL_ALIGNMENT_LEFT,70,13,Color("#bed5bc"))
-	var keys := equipped_plants
-	for i in keys.size(): draw_card(i,keys[i])
-	# 铲子、关卡信息、倍速与暂停
-	draw_panel(Rect2(175,14,105,62),Color("#80583d") if selected!="shovel" else Color("#d19b50"),Color("#e8ca86"),3)
-	draw_shovel_icon(Vector2(198,43), 0.65)
-	draw_string(ThemeDB.fallback_font,Vector2(207,50),"铲子",HORIZONTAL_ALIGNMENT_CENTER,63,17,Color.WHITE)
-	draw_panel(Rect2(251,20,22,20),Color("#3d332b"),Color("#d5bd86"),1)
-	draw_string(ThemeDB.fallback_font,Vector2(251,35),key_name(shovel_key),HORIZONTAL_ALIGNMENT_CENTER,22,11,Color("#fff0a2"))
-	draw_string(ThemeDB.fallback_font,Vector2(320,53),level_title(current_level),HORIZONTAL_ALIGNMENT_LEFT,285,24,Color("#fff0a0"))
-	draw_panel(Rect2(1045,14,105,62),Color("#477772"),Color("#8fc5bb"),3)
-	draw_string(ThemeDB.fallback_font,Vector2(1045,43),"倍速",HORIZONTAL_ALIGNMENT_CENTER,105,14,Color("#bfe1da"))
-	draw_string(ThemeDB.fallback_font,Vector2(1045,67),str(game_speed)+"x",HORIZONTAL_ALIGNMENT_CENTER,105,21,Color("#fff0a0"))
-	draw_panel(Rect2(1165,14,100,62),Color("#3a5b52"),Color("#8fc5bb"),3)
-	draw_string(ThemeDB.fallback_font,Vector2(1165,53),"暂停",HORIZONTAL_ALIGNMENT_CENTER,100,20,Color.WHITE)
-	# 显眼的关卡进度条，位于顶部中央
-	var total_waves := maxi(wave_plan.size(), 1)
-	var partial_wave := 0.0
-	if not final_wave_sent and spawn_clock_start > 0.0:
-		var clock_progress := clampf(1.0 - spawn_clock / spawn_clock_start, 0.0, 1.0)
-		if current_wave % 10 == 9:
-			partial_wave = 0.75 + clock_progress * 0.25 if big_wave_warning else clock_progress * 0.75
-		else:
-			partial_wave = clock_progress
-	var prog := 1.0 if final_wave_sent else clampf((current_wave + partial_wave) / float(total_waves), 0.0, 1.0)
-	draw_string(ThemeDB.fallback_font,Vector2(625,31),"关卡进度",HORIZONTAL_ALIGNMENT_LEFT,100,15,Color("#fff0a0"))
-	draw_panel(Rect2(625,39,385,37),Color("#172724"),Color("#ffe36e"),5)
-	draw_rect(Rect2(632,46,371*prog,23),Color("#df5a47"))
-	draw_rect(Rect2(632,46,371*prog,7),Color("#ff8a62"))
-	draw_string(ThemeDB.fallback_font,Vector2(625,65),str(roundi(prog*100))+"%",HORIZONTAL_ALIGNMENT_CENTER,385,14,Color.WHITE)
-	var marker_x := 632.0 + 371.0 * prog
-	draw_line(Vector2(marker_x,38),Vector2(marker_x,72),Color("#fff4b0"),2)
-	draw_colored_polygon(PackedVector2Array([Vector2(marker_x,38),Vector2(marker_x+12,43),Vector2(marker_x,49)]),Color("#fff4b0"))
-	# 每10波标记一次旗帜，支持以后配置两次或三次大波。
-	for flag_wave in range(10, total_waves + 1, 10):
-		var flag_x := 632.0 + 371.0 * float(flag_wave) / float(total_waves)
-		draw_line(Vector2(flag_x,37),Vector2(flag_x,58),Color("#fff4b0"),2)
-		draw_colored_polygon(PackedVector2Array([Vector2(flag_x+1,38),Vector2(flag_x+11,43),Vector2(flag_x+1,49)]),Color("#e95b4f"))
-	if message_time > 0:
-		draw_string(ThemeDB.fallback_font,Vector2(160,132),message,HORIZONTAL_ALIGNMENT_CENTER,1120,20,Color("#fff3a0"))
-
-func draw_card(index: int, kind: String) -> void:
-	var rect := card_rect(index)
-	var data: Dictionary = PLANT_DATA[kind]
-	var ready: bool = cooldowns.get(kind,0.0)<=0 and sun_points>=data.cost
-	var bg := Color("#466b51") if ready else Color("#37483f")
-	if selected == kind: bg = Color("#7ca64e")
-	if hover_card == index: bg = bg.lightened(.08)
-	draw_panel(rect,bg,Color("#d3c17a") if selected==kind else Color("#708b6d"),3)
-	draw_mini_plant(kind,Vector2(rect.position.x+36,rect.position.y+35))
-	draw_string(ThemeDB.fallback_font,Vector2(rect.position.x+64,rect.position.y+24),data.name,HORIZONTAL_ALIGNMENT_LEFT,73,12,Color.WHITE)
-	draw_string(ThemeDB.fallback_font,Vector2(rect.position.x+64,rect.position.y+49),str(data.cost),HORIZONTAL_ALIGNMENT_LEFT,58,20,Color("#ffe16d") if sun_points>=data.cost else Color("#b16b62"))
-	draw_panel(Rect2(rect.position.x+7,rect.position.y+6,20,20),Color("#243c34"),Color("#77927e"),1)
-	draw_string(ThemeDB.fallback_font,Vector2(rect.position.x+7,rect.position.y+21),key_name(plant_keys[index]),HORIZONTAL_ALIGNMENT_CENTER,20,11,Color("#fff0a2"))
-	draw_string(ThemeDB.fallback_font,Vector2(rect.position.x+64,rect.position.y+66),"可种植" if cooldowns.get(kind,0.0)<=0 else "%0.1f秒"%cooldowns[kind],HORIZONTAL_ALIGNMENT_LEFT,73,10,Color("#cfe5bd"))
-	if cooldowns.get(kind,0.0)>0:
-		var ratio: float = cooldowns[kind]/data.cool
-		draw_rect(Rect2(rect.position.x,rect.position.y,rect.size.x,rect.size.y*ratio),Color(0.05,0.1,0.08,.46))
-
-func draw_plant(p: Dictionary) -> void:
-	var pos := cell_center(p.col,p.row)
-	var bob := sin(p.anim*3.0)*2.0
-	pos.y += bob
-	if p.kind == "mine": draw_potato_mine(pos, p.armed, 1.0)
-	else: draw_plant_shape(p.kind,pos,1.0)
-	if show_health_bars and p.hp < p.max_hp:
-		draw_bar(Vector2(pos.x-31,pos.y-49),62,p.hp/p.max_hp,Color("#7de05b"))
-
-func draw_plant_shape(kind: String, pos: Vector2, scale: float) -> void:
-	# stem and leaves
-	if kind != "wall" and kind != "cherry" and kind != "mine" and kind != "yam_guard":
-		draw_rect(Rect2(pos+Vector2(-4,9)*scale,Vector2(8,31)*scale),Color("#347c3c"))
-		draw_colored_polygon(PackedVector2Array([pos+Vector2(-3,25)*scale,pos+Vector2(-28,14)*scale,pos+Vector2(-20,36)*scale]),Color("#55a94b"))
-		draw_colored_polygon(PackedVector2Array([pos+Vector2(3,29)*scale,pos+Vector2(27,19)*scale,pos+Vector2(18,40)*scale]),Color("#438e42"))
-	match kind:
-		"sunflower":
-			for i in 10:
-				var a := i*TAU/10.0
-				draw_circle(pos+Vector2(cos(a),sin(a))*21*scale,11*scale,Color("#ffd747"))
-			draw_circle(pos,20*scale,Color("#874b2e")); draw_circle(pos+Vector2(-7,-4)*scale,3*scale,Color("#301f1b")); draw_circle(pos+Vector2(7,-4)*scale,3*scale,Color("#301f1b"))
-			draw_line(pos+Vector2(-7,8)*scale,pos+Vector2(0,11)*scale,Color("#f4be55"),2*scale); draw_line(pos+Vector2(0,11)*scale,pos+Vector2(8,7)*scale,Color("#f4be55"),2*scale)
-		"pea", "snow":
-			var c := Color("#7bd34d") if kind=="pea" else Color("#78dce8")
-			draw_circle(pos+Vector2(0,-8)*scale,23*scale,c); draw_circle(pos+Vector2(20,-9)*scale,12*scale,c.darkened(.08)); draw_circle(pos+Vector2(25,-9)*scale,6*scale,Color("#244f3e"))
-			draw_circle(pos+Vector2(-6,-15)*scale,4*scale,Color("#172e28")); draw_circle(pos+Vector2(-5,-16)*scale,1.4*scale,Color.WHITE)
-			if kind=="snow": draw_rect(Rect2(pos+Vector2(-18,-35)*scale,Vector2(30,7)*scale),Color("#e9fbff"))
-		"wall":
-			draw_rect(Rect2(pos+Vector2(-30,-37)*scale,Vector2(60,75)*scale),Color("#ad7040")); draw_rect(Rect2(pos+Vector2(-24,-31)*scale,Vector2(48,63)*scale),Color("#c68a50"))
-			for yy in [-18,5,22]: draw_line(pos+Vector2(-18,yy)*scale,pos+Vector2(18,yy-5)*scale,Color("#8d5938"),2*scale)
-			draw_circle(pos+Vector2(-10,-10)*scale,4*scale,Color("#34261f")); draw_circle(pos+Vector2(11,-10)*scale,4*scale,Color("#34261f")); draw_line(pos+Vector2(-9,12)*scale,pos+Vector2(10,12)*scale,Color("#513528"),3*scale)
-		"cherry":
-			draw_line(pos+Vector2(-14,-9)*scale,pos+Vector2(3,-34)*scale,Color("#376b36"),5*scale); draw_line(pos+Vector2(14,-7)*scale,pos+Vector2(3,-34)*scale,Color("#376b36"),5*scale)
-			draw_circle(pos+Vector2(-16,7)*scale,22*scale,Color("#e74d49")); draw_circle(pos+Vector2(17,9)*scale,22*scale,Color("#cf383d"))
-			draw_circle(pos+Vector2(-22,0)*scale,5*scale,Color("#ff9580")); draw_circle(pos+Vector2(-22,8)*scale,3*scale,Color("#391e26")); draw_circle(pos+Vector2(11,8)*scale,3*scale,Color("#391e26"))
-		"mine":
-			draw_potato_mine(pos, true, scale)
-		"yam_guard":
-			draw_circle(pos+Vector2(0,5)*scale,31*scale,Color("#b84f36"))
-			draw_circle(pos+Vector2(-10,-2)*scale,16*scale,Color("#d46a45"))
-			draw_circle(pos+Vector2(11,2)*scale,17*scale,Color("#c45a3b"))
-			draw_circle(pos+Vector2(-8,-6)*scale,3*scale,Color("#30231f"))
-			draw_circle(pos+Vector2(12,-3)*scale,3*scale,Color("#30231f"))
-			draw_line(pos+Vector2(-4,12)*scale,pos+Vector2(8,12)*scale,Color("#6e2f29"),3*scale)
-			draw_colored_polygon(PackedVector2Array([
-				pos+Vector2(-8,-27)*scale,pos+Vector2(-3,-43)*scale,
-				pos+Vector2(3,-28)*scale,pos+Vector2(13,-40)*scale,
-				pos+Vector2(11,-22)*scale
-			]),Color("#4d9a45"))
-
-func yam_stack_offset(index: int) -> Vector2:
-	var minion: Dictionary = yam_minions[index]
-	var order := 0
-	var total := 0
-	for i in yam_minions.size():
-		var other: Dictionary = yam_minions[i]
-		if not other.dead and other.col == minion.col and other.row == minion.row:
-			if i < index:
-				order += 1
-			total += 1
-	return Vector2((float(order) - float(total - 1) * 0.5) * 14.0, float(order) * 2.0)
-
-func draw_yam_minion(minion: Dictionary, stack_offset := Vector2.ZERO) -> void:
-	if minion.dead:
-		return
-	var pos := cell_center(minion.col,minion.row) + stack_offset
-	var bob := sin(minion.anim*4.0)*1.5
-	var body_color := Color("#ed8554") if minion.attack_flash <= 0.0 else Color("#ffd06b")
-	draw_circle(pos+Vector2(0,8+bob),22,body_color)
-	draw_circle(pos+Vector2(-8,3+bob),3,Color("#30231f"))
-	draw_circle(pos+Vector2(8,3+bob),3,Color("#30231f"))
-	draw_line(pos+Vector2(-7,15+bob),pos+Vector2(7,15+bob),Color("#77352d"),3)
-	draw_colored_polygon(PackedVector2Array([
-		pos+Vector2(-5,-13+bob),pos+Vector2(-1,-27+bob),
-		pos+Vector2(4,-14+bob),pos+Vector2(12,-24+bob),
-		pos+Vector2(9,-9+bob)
-	]),Color("#57a74b"))
-	draw_line(pos+Vector2(20,4+bob),pos+Vector2(31,-3+bob),Color("#7a3b2c"),5)
-	if show_health_bars and minion.hp < minion.max_hp:
-		draw_bar(Vector2(pos.x-27,pos.y-29-stack_offset.y*3.0),54,minion.hp/minion.max_hp,Color("#f09a5f"))
-
-func draw_potato_mine(pos: Vector2, armed: bool, scale: float) -> void:
-	var dirt := PackedVector2Array()
-	for i in 16:
-		var angle := TAU * float(i) / 16.0
-		dirt.append(pos + Vector2(cos(angle) * 35.0, 24.0 + sin(angle) * 11.0) * scale)
-	draw_colored_polygon(dirt, Color("#805b39"))
-	if not armed:
-		draw_circle(pos + Vector2(0, 18) * scale, 17 * scale, Color("#a67543"))
-		draw_circle(pos + Vector2(-7, 13) * scale, 2.5 * scale, Color("#3b2b25"))
-		draw_circle(pos + Vector2(8, 13) * scale, 2.5 * scale, Color("#3b2b25"))
-	else:
-		draw_circle(pos + Vector2(0, 5) * scale, 24 * scale, Color("#bd8749"))
-		draw_circle(pos + Vector2(-8, 0) * scale, 3.5 * scale, Color("#30251f"))
-		draw_circle(pos + Vector2(9, 0) * scale, 3.5 * scale, Color("#30251f"))
-		draw_line(pos + Vector2(-9, 13) * scale, pos + Vector2(10, 13) * scale, Color("#633d2b"), 3 * scale)
-		draw_rect(Rect2(pos + Vector2(-4, -27) * scale, Vector2(8, 12) * scale), Color("#d9b25b"))
-		draw_circle(pos + Vector2(0, -30) * scale, 5 * scale, Color("#f2d65c"))
-
-func draw_zombie(z: Dictionary) -> void:
-	var pos := Vector2(z.x,z.get("draw_y",BOARD_Y+z.row*CELL_H+CELL_H/2.0))
-	var scale: float = z.get("draw_scale",1.0)
-	var biting: bool = z.get("biting",false)
-	var walking: bool = z.get("walking",not biting)
-	var bite := (sin(z.anim*11.0)+1.0)*0.5 if biting else 0.0
-	# 步频跟随移动速度：基础僵尸缓慢拖步，疾跑僵尸才明显加快。
-	var movement_speed: float = float(z.get("speed",15.0))
-	var gait_rate := 2.65 * clampf(movement_speed/15.0,0.8,1.7)
-	var gait := sin(z.anim*gait_rate) if walking else 0.0
-	var left_lift := maxf(gait,0.0)*7.0 if walking else 0.0
-	var right_lift := maxf(-gait,0.0)*7.0 if walking else 0.0
-	var head_shift := Vector2(-6.0*bite,2.0*bite)*scale
-	var skin := Color("#83a96b") if z.slow<=0 else Color("#71b8bd")
-	var outline := Color("#263029")
-	var jacket := Color("#66503e")
-	var jacket_dark := Color("#46372f")
-	var pants := Color("#465160")
-	# 行走时两腿交替前后迈步并抬脚；停止啃食时回到固定弯腿站姿。
-	var left_hip := pos+Vector2(-7,11)*scale
-	var left_knee := pos+Vector2(-16-gait*6.0,29-left_lift*0.35)*scale
-	var left_ankle := pos+Vector2(-12-gait*14.0,44-left_lift)*scale
-	draw_line(left_hip,left_knee,pants,12*scale)
-	draw_line(left_knee,left_ankle,pants.darkened(.12),11*scale)
-	var right_hip := pos+Vector2(10,13)*scale
-	var right_knee := pos+Vector2(8+gait*6.0,31-right_lift*0.35)*scale
-	var right_ankle := pos+Vector2(18+gait*14.0,44-right_lift)*scale
-	draw_line(right_hip,right_knee,pants.darkened(.08),12*scale)
-	draw_line(right_knee,right_ankle,pants,11*scale)
-	draw_colored_polygon(PackedVector2Array([left_ankle+Vector2(-22,-2)*scale,left_ankle+Vector2(7,-2)*scale,left_ankle+Vector2(9,7)*scale,left_ankle+Vector2(-19,9)*scale]),Color("#513727"))
-	draw_colored_polygon(PackedVector2Array([right_ankle+Vector2(-17,-2)*scale,right_ankle+Vector2(14,-1)*scale,right_ankle+Vector2(16,7)*scale,right_ankle+Vector2(-14,9)*scale]),Color("#3e2d24"))
-	# 驼背的破旧西装，身体向行进方向（左）前倾。
-	draw_colored_polygon(PackedVector2Array([pos+Vector2(-25,-30)*scale,pos+Vector2(4,-37)*scale,pos+Vector2(23,-21)*scale,pos+Vector2(21,15)*scale,pos+Vector2(-16,19)*scale]),jacket)
-	draw_colored_polygon(PackedVector2Array([pos+Vector2(5,-35)*scale,pos+Vector2(23,-21)*scale,pos+Vector2(23,16)*scale,pos+Vector2(9,11)*scale]),jacket_dark)
-	draw_colored_polygon(PackedVector2Array([pos+Vector2(-11,-31)*scale,pos+Vector2(4,-33)*scale,pos+Vector2(7,10)*scale,pos+Vector2(-6,12)*scale]),Color("#c9c4aa"))
-	# 鲜明领带保留角色识别，避免过多衣物纹理。
-	draw_colored_polygon(PackedVector2Array([pos+Vector2(-7,-27)*scale,pos+Vector2(1,-28)*scale,pos+Vector2(3,8)*scale,pos+Vector2(-4,13)*scale]),Color("#a53e3c"))
-	draw_line(pos+Vector2(-5,-10)*scale,pos+Vector2(2,-7)*scale,Color("#e4d8c0"),2*scale)
-	# 普通僵尸右手自然下垂，啃食时才前伸；旗帜僵尸单独抬起右手握旗。
-	if z.kind == "flag":
-		draw_line(pos+Vector2(-19,-21)*scale,pos+Vector2(-34,-30)*scale,jacket,11*scale)
-		draw_line(pos+Vector2(-34,-30)*scale,pos+Vector2(-34,-43)*scale,skin,8*scale)
-		draw_circle(pos+Vector2(-34,-45)*scale,7*scale,skin.darkened(.07))
-	else:
-		var elbow := Vector2(-27,-2).lerp(Vector2(-39,-8),bite)
-		var hand := Vector2(-24,17).lerp(Vector2(-45,3),bite)
-		draw_line(pos+Vector2(-19,-21)*scale,pos+elbow*scale,jacket,11*scale)
-		draw_line(pos+elbow*scale,pos+hand*scale,skin,8*scale)
-		draw_circle(pos+(hand+Vector2(0,3))*scale,7*scale,skin.darkened(.07))
-	# 后臂在 100 生命值时从肩部脱落，留下破袖口。
-	if not z.get("arm_lost",false):
-		draw_line(pos+Vector2(14,-23)*scale,pos+Vector2(22,-4)*scale,jacket_dark,11*scale)
-		draw_line(pos+Vector2(22,-4)*scale,pos+Vector2(16,15)*scale,skin,9*scale)
-		draw_circle(pos+Vector2(15,18)*scale,7*scale,skin.darkened(.08))
-	else:
-		draw_colored_polygon(PackedVector2Array([pos+Vector2(12,-29)*scale,pos+Vector2(25,-24)*scale,pos+Vector2(20,-13)*scale,pos+Vector2(11,-17)*scale]),jacket_dark.darkened(.18))
-		draw_circle(pos+Vector2(20,-20)*scale,4*scale,Color("#735044"))
-	# 大头、凸眼、松垮下颌，整体面向左侧。
-	var head := pos+Vector2(-11,-58)*scale+head_shift
-	draw_circle(head,28*scale,outline)
-	draw_circle(head,25*scale,skin)
-	# 不画鼻子实体；两个鼻孔位于双眼下方、嘴巴正上方。
-	draw_circle(head+Vector2(-9,3)*scale,1.6*scale,Color("#40513f"))
-	draw_circle(head+Vector2(-3,3)*scale,1.6*scale,Color("#40513f"))
-	var jaw_drop := 7.0*bite
-	draw_colored_polygon(PackedVector2Array([head+Vector2(-23,13)*scale,head+Vector2(11,14)*scale,head+Vector2(8,26+jaw_drop)*scale,head+Vector2(-18,28+jaw_drop)*scale]),skin.darkened(.08))
-	# 不对称凸眼，保持简洁的扁平几何形状。
-	draw_circle(head+Vector2(-16,-8)*scale,8*scale,Color("#eee9c9"))
-	draw_circle(head+Vector2(3,-11)*scale,9*scale,Color("#f3edcf"))
-	draw_circle(head+Vector2(-20,-6)*scale,2.7*scale,Color("#242922"))
-	draw_circle(head+Vector2(-2,-8)*scale,2.7*scale,Color("#242922"))
-	# 啃食状态张大嘴；上下两排参差牙齿随下颌开合。
-	draw_colored_polygon(PackedVector2Array([head+Vector2(-24,12)*scale,head+Vector2(9,13)*scale,head+Vector2(6,22+jaw_drop)*scale,head+Vector2(-19,22+jaw_drop)*scale]),Color("#352728"))
-	draw_rect(Rect2(head+Vector2(-15,12)*scale,Vector2(7,6)*scale),Color("#e4ddc1"))
-	draw_rect(Rect2(head+Vector2(-2,13)*scale,Vector2(6,5)*scale),Color("#ded6b9"))
-	if biting:
-		draw_line(head+Vector2(-17,22+jaw_drop)*scale,head+Vector2(2,21+jaw_drop)*scale,Color("#8f3d43"),3*scale)
-	# 稀疏凌乱的头发。
-	draw_line(head+Vector2(-4,-25)*scale,head+Vector2(-2,-35)*scale,outline,2*scale)
-	draw_line(head+Vector2(7,-23)*scale,head+Vector2(14,-31)*scale,outline,2*scale)
-	if z.kind=="cone" and not z.get("armor_lost",false):
-		draw_colored_polygon(PackedVector2Array([head+Vector2(-22,-18)*scale,head+Vector2(1,-62)*scale,head+Vector2(25,-18)*scale]),Color("#e88737"))
-		draw_rect(Rect2(head+Vector2(-28,-21)*scale,Vector2(58,8)*scale),Color("#f0a246"))
-		draw_line(head+Vector2(-13,-36)*scale,head+Vector2(12,-36)*scale,Color("#f6c06b"),4*scale)
-	elif z.kind=="bucket" and not z.get("armor_lost",false):
-		draw_colored_polygon(PackedVector2Array([head+Vector2(-25,-55)*scale,head+Vector2(24,-51)*scale,head+Vector2(29,-17)*scale,head+Vector2(-21,-18)*scale]),Color("#879397"))
-		draw_rect(Rect2(head+Vector2(-30,-56)*scale,Vector2(61,7)*scale),Color("#c0c7c7"))
-		draw_line(head+Vector2(-16,-41)*scale,head+Vector2(21,-38)*scale,Color("#5d696c"),3*scale)
-	elif z.kind=="runner":
-		draw_rect(Rect2(head+Vector2(-27,-24)*scale,Vector2(52,9)*scale),Color("#e95855"))
-		draw_colored_polygon(PackedVector2Array([head+Vector2(23,-22)*scale,head+Vector2(45,-33)*scale,head+Vector2(35,-17)*scale]),Color("#e95855"))
-	elif z.kind=="flag":
-		# 面向左侧时，角色右手位于画面左侧；旗杆由这只前手握持。
-		var pole_x := pos.x - 34.0 * scale
-		draw_line(Vector2(pole_x,pos.y+28*scale),Vector2(pole_x,pos.y-104*scale),Color("#d9c8a1"),4*scale)
-		draw_colored_polygon(PackedVector2Array([
-			Vector2(pole_x,pos.y-102*scale), Vector2(pole_x-48*scale,pos.y-91*scale),
-			Vector2(pole_x,pos.y-72*scale)]),Color("#e4514c"))
-		draw_circle(Vector2(pole_x-15*scale,pos.y-88*scale),7*scale,Color("#f5e8c0"))
-		# 手掌覆盖在旗杆上，表现为真正握持而不是旗杆悬空。
-		draw_circle(Vector2(pole_x,pos.y-45*scale),5*scale,skin.darkened(.08))
-	# 僵尸血条始终显示；草坪顶部留出的空间可完整容纳第一行血条和帽子。
-	if show_health_bars and not z.get("hide_bar", false):
-		draw_bar(pos+Vector2(-39,-112)*scale,68*scale,z.hp/z.max_hp,Color("#df6b54"))
-	if z.slow>0: draw_circle(pos+Vector2(-10,-55)*scale,32*scale,Color(0.4,0.9,1,0.13),false,3*scale)
-
-func draw_detached_arm(arm: Dictionary) -> void:
-	var pos: Vector2 = arm.pos
-	var angle: float = arm.angle
-	var skin := Color("#71b8bd") if arm.slow else Color("#83a96b")
-	var jacket := Color("#46372f")
-	var elbow := pos + Vector2(16,5).rotated(angle)
-	var wrist := pos + Vector2(27,19).rotated(angle)
-	draw_line(pos,elbow,jacket,10.0)
-	draw_line(elbow,wrist,skin,8.0)
-	draw_circle(wrist,6.0,skin.darkened(.08))
-
-func draw_dropped_armor(armor: Dictionary) -> void:
-	var pos: Vector2 = armor.pos
-	var angle: float = armor.angle
-	if armor.kind == "cone":
-		draw_colored_polygon(PackedVector2Array([
-			pos+Vector2(-23,18).rotated(angle),pos+Vector2(0,-28).rotated(angle),
-			pos+Vector2(24,18).rotated(angle)]),Color("#e88737"))
-		draw_line(pos+Vector2(-27,20).rotated(angle),pos+Vector2(28,20).rotated(angle),Color("#f0a246"),7)
-	else:
-		draw_colored_polygon(PackedVector2Array([
-			pos+Vector2(-24,-18).rotated(angle),pos+Vector2(24,-18).rotated(angle),
-			pos+Vector2(21,18).rotated(angle),pos+Vector2(-21,18).rotated(angle)]),Color("#879397"))
-		draw_line(pos+Vector2(-28,-20).rotated(angle),pos+Vector2(28,-20).rotated(angle),Color("#c0c7c7"),6)
-		draw_line(pos+Vector2(-17,-6).rotated(angle),pos+Vector2(17,-6).rotated(angle),Color("#5d696c"),3)
-
-func draw_projectile(pr: Dictionary) -> void:
-	var c := Color("#7de04e") if not pr.snow else Color("#8cebf2")
-	draw_circle(Vector2(pr.x,pr.y),8,c); draw_rect(Rect2(pr.x-14,pr.y-2,7,4),c.darkened(.2))
-
-func draw_sun(s: Dictionary) -> void:
-	var pos: Vector2=s.pos; var rad:=19.0+sin(s.pulse*5.0)*2.0
-	for i in 8:
-		var a:=i*TAU/8.0; draw_line(pos+Vector2(cos(a),sin(a))*24,pos+Vector2(cos(a),sin(a))*31,Color("#ffe466"),5)
-	draw_circle(pos,rad,Color("#ffd34d")); draw_circle(pos-Vector2(5,5),5,Color("#fff09a"))
-
-func draw_mower(m: Dictionary) -> void:
-	if m.used:return
-	var pos:=Vector2(m.x,BOARD_Y+m.row*CELL_H+CELL_H/2.0+5.0)
-	draw_circle(pos+Vector2(-15,17),10,Color("#253535")); draw_circle(pos+Vector2(17,17),10,Color("#253535")); draw_rect(Rect2(pos+Vector2(-25,-5),Vector2(55,24)),Color("#d94c42")); draw_rect(Rect2(pos+Vector2(-32,-10),Vector2(12,9)),Color("#d7d7ba")); draw_line(pos+Vector2(23,-3),pos+Vector2(37,-31),Color("#4d554f"),5)
-
-func draw_shovel_icon(pos: Vector2, scale: float) -> void:
-	draw_line(pos + Vector2(-8, 15) * scale, pos + Vector2(13, -13) * scale, Color("#d9b06c"), 7.0 * scale)
-	draw_line(pos + Vector2(10, -12) * scale, pos + Vector2(18, -22) * scale, Color("#f2d799"), 5.0 * scale)
-	draw_colored_polygon(PackedVector2Array([
-		pos + Vector2(-18, 14) * scale,
-		pos + Vector2(-5, 7) * scale,
-		pos + Vector2(3, 17) * scale,
-		pos + Vector2(-9, 29) * scale,
-		pos + Vector2(-20, 25) * scale
-	]), Color("#c7d0ca"))
-	draw_line(pos + Vector2(-17, 17) * scale, pos + Vector2(-8, 25) * scale, Color("#eef2df"), 2.0 * scale)
-
-func draw_bar(pos: Vector2, width: float, ratio: float, color: Color) -> void:
-	draw_rect(Rect2(pos,Vector2(width,6)),Color("#28332e")); draw_rect(Rect2(pos+Vector2(1,1),Vector2((width-2)*clampf(ratio,0,1),4)),color)
-
-func draw_panel(rect: Rect2, fill: Color, border: Color, thick: float) -> void:
-	draw_rect(rect,fill); draw_rect(rect,border,false,thick); draw_line(rect.position+Vector2(thick,thick),Vector2(rect.end.x-thick,rect.position.y+thick),fill.lightened(.18),thick)
-
-func draw_mini_plant(kind: String, pos: Vector2) -> void:
-	if kind == "mine": draw_potato_mine(pos, true, 0.48)
-	else: draw_plant_shape(kind,pos,0.48)
-
-func draw_wave_banner() -> void:
-	var alpha := clampf(wave_banner_time, 0.0, 1.0)
-	draw_rect(Rect2(290,285,830,118),Color(0.10,0.08,0.06,0.82*alpha))
-	draw_rect(Rect2(290,285,830,118),Color(1.0,0.83,0.30,alpha),false,5)
-	draw_line(Vector2(345,378),Vector2(345,302),Color(0.9,0.85,0.7,alpha),5)
-	draw_colored_polygon(PackedVector2Array([Vector2(348,304),Vector2(415,323),Vector2(348,344)]),Color(0.88,0.25,0.22,alpha))
-	draw_string(ThemeDB.fallback_font,Vector2(430,356),"一大波僵尸正在接近！",HORIZONTAL_ALIGNMENT_CENTER,610,37,Color(1.0,0.91,0.55,alpha))
-
-func draw_title_plant(pos: Vector2) -> void:
-	draw_plant_shape("pea",pos,2.15)
-
-func draw_title_zombie(pos: Vector2) -> void:
-	draw_zombie({"x":pos.x,"draw_y":pos.y,"row":2,"anim":0.0,"slow":0.0,"kind":"cone","hp":1.0,"max_hp":1.0,"hide_bar":true})
-
-func draw_pause_overlay() -> void:
-	draw_rect(Rect2(0,0,W,H),Color(0.03,0.08,0.07,.82))
-	draw_panel(Rect2(250,35,780,650),Color("#295451"),Color("#bde9df"),5)
-	draw_rect(Rect2(257,42,766,8),Color("#73bdb3"))
-	if pause_page == "more":
-		draw_more_settings()
-		return
-	if pause_page == "keys":
-		draw_key_settings()
-		return
-	draw_string(ThemeDB.fallback_font,Vector2(250,103),"暂停与设置",HORIZONTAL_ALIGNMENT_CENTER,780,42,Color("#fff4b0"))
-	draw_string(ThemeDB.fallback_font,Vector2(285,134),"游戏速度",HORIZONTAL_ALIGNMENT_LEFT,150,20,Color.WHITE)
-	for i in speed_options.size():
-		var speed: float = speed_options[i]
-		var active := is_equal_approx(game_speed, speed)
-		var rect := Rect2(335 + i * 104, 145, 90, 44)
-		draw_panel(rect,Color("#8cb95b") if active else Color("#41706b"),Color("#fff0a0") if active else Color("#79a8a1"),3)
-		draw_string(ThemeDB.fallback_font,Vector2(rect.position.x,rect.position.y+29),str(speed)+" 倍",HORIZONTAL_ALIGNMENT_CENTER,rect.size.x,16,Color.WHITE)
-	draw_volume_slider("音乐", music_volume, 225)
-	draw_volume_slider("音效", sfx_volume, 280)
-	# 自动拾取阳光
-	draw_panel(Rect2(420,310,32,32),Color("#e7f4e8"),Color("#153f3d"),3)
-	if auto_collect_sun:
-		draw_line(Vector2(426,326),Vector2(436,337),Color("#55a52e"),6)
-		draw_line(Vector2(436,337),Vector2(449,315),Color("#55a52e"),6)
-	draw_string(ThemeDB.fallback_font,Vector2(470,336),"自动拾取阳光",HORIZONTAL_ALIGNMENT_LEFT,190,24,Color.WHITE)
-	var fullscreen := get_window().mode == Window.MODE_FULLSCREEN or get_window().mode == Window.MODE_EXCLUSIVE_FULLSCREEN
-	draw_panel(Rect2(700,307,160,44),Color("#5c9d74") if fullscreen else Color("#41706b"),Color("#8fc5bb"),2)
-	draw_string(ThemeDB.fallback_font,Vector2(700,336),"退出全屏" if fullscreen else "全屏显示",HORIZONTAL_ALIGNMENT_CENTER,160,18,Color.WHITE)
-	draw_pause_icon_button(Rect2(360,376,150,106),"door","返回主菜单")
-	draw_pause_icon_button(Rect2(565,376,150,106),"gear","更多设置")
-	draw_pause_icon_button(Rect2(770,376,150,106),"restart","重新开始")
-	draw_panel(Rect2(350,520,580,70),Color("#bceee6"),Color("#184d4b"),5)
-	draw_string(ThemeDB.fallback_font,Vector2(350,566),"返回游戏",HORIZONTAL_ALIGNMENT_CENTER,580,31,Color("#173c3a"))
-	draw_string(ThemeDB.fallback_font,Vector2(250,650),"P / Esc 继续  •  F11 切换全屏",HORIZONTAL_ALIGNMENT_CENTER,780,15,Color("#b5d2cc"))
-	if fullscreen_notice != "":
-		draw_string(ThemeDB.fallback_font,Vector2(250,674),fullscreen_notice,HORIZONTAL_ALIGNMENT_CENTER,780,14,Color("#ffd28a"))
-
-func draw_more_settings() -> void:
-	draw_string(ThemeDB.fallback_font,Vector2(250,105),"更多设置",HORIZONTAL_ALIGNMENT_CENTER,780,42,Color("#fff4b0"))
-	draw_string(ThemeDB.fallback_font,Vector2(310,158),"操作设置",HORIZONTAL_ALIGNMENT_LEFT,200,22,Color.WHITE)
-	draw_panel(Rect2(410,180,460,74),Color("#68b8ad"),Color("#d4f4ef"),4)
-	draw_string(ThemeDB.fallback_font,Vector2(410,227),"⌨  快捷键设置",HORIZONTAL_ALIGNMENT_CENTER,460,26,Color("#153e3b"))
-	draw_string(ThemeDB.fallback_font,Vector2(310,293),"当前设置",HORIZONTAL_ALIGNMENT_LEFT,200,22,Color.WHITE)
-	draw_panel(Rect2(310,330,660,170),Color("#234642"),Color("#56827b"),2)
-	draw_rect(Rect2(316,336,648,43),Color("#315b56"))
-	draw_string(ThemeDB.fallback_font,Vector2(340,364),"显示植物和僵尸的血量",HORIZONTAL_ALIGNMENT_LEFT,360,18,Color.WHITE)
-	draw_panel(Rect2(850,341,92,32),Color("#62a96a") if show_health_bars else Color("#665b59"),Color("#94c5a0") if show_health_bars else Color("#8b7d78"),2)
-	draw_string(ThemeDB.fallback_font,Vector2(850,363),"显示" if show_health_bars else "隐藏",HORIZONTAL_ALIGNMENT_CENTER,92,15,Color.WHITE)
-	draw_string(ThemeDB.fallback_font,Vector2(340,400),"游戏速度",HORIZONTAL_ALIGNMENT_LEFT,180,17,Color("#b9d6d0"))
-	draw_string(ThemeDB.fallback_font,Vector2(690,400),str(game_speed)+" 倍",HORIZONTAL_ALIGNMENT_RIGHT,220,17,Color.WHITE)
-	draw_string(ThemeDB.fallback_font,Vector2(340,432),"自动拾取阳光",HORIZONTAL_ALIGNMENT_LEFT,180,17,Color("#b9d6d0"))
-	draw_string(ThemeDB.fallback_font,Vector2(690,432),"开启" if auto_collect_sun else "关闭",HORIZONTAL_ALIGNMENT_RIGHT,220,17,Color.WHITE)
-	draw_string(ThemeDB.fallback_font,Vector2(340,464),"音乐 / 音效",HORIZONTAL_ALIGNMENT_LEFT,180,17,Color("#b9d6d0"))
-	draw_string(ThemeDB.fallback_font,Vector2(690,464),str(roundi(music_volume*100))+"%  /  "+str(roundi(sfx_volume*100))+"%",HORIZONTAL_ALIGNMENT_RIGHT,220,17,Color.WHITE)
-	draw_string(ThemeDB.fallback_font,Vector2(340,494),"显示模式",HORIZONTAL_ALIGNMENT_LEFT,180,17,Color("#b9d6d0"))
-	var full := get_window().mode == Window.MODE_FULLSCREEN or get_window().mode == Window.MODE_EXCLUSIVE_FULLSCREEN
-	draw_string(ThemeDB.fallback_font,Vector2(690,494),"全屏" if full else "窗口",HORIZONTAL_ALIGNMENT_RIGHT,220,17,Color.WHITE)
-	draw_panel(Rect2(350,565,580,64),Color("#bceee6"),Color("#184d4b"),4)
-	draw_string(ThemeDB.fallback_font,Vector2(350,607),"返回暂停菜单",HORIZONTAL_ALIGNMENT_CENTER,580,25,Color("#173c3a"))
-
-func draw_key_settings() -> void:
-	draw_string(ThemeDB.fallback_font,Vector2(250,98),"快捷键设置",HORIZONTAL_ALIGNMENT_CENTER,780,38,Color("#fff4b0"))
-	draw_string(ThemeDB.fallback_font,Vector2(250,126),"点击键位后，按下新的按键；冲突键位会自动交换",HORIZONTAL_ALIGNMENT_CENTER,780,15,Color("#b8d4ce"))
-	for i in plant_keys.size():
-		var col := 0 if i < 4 else 1
-		var row := i if i < 4 else i - 4
-		var base_x := 300.0 if col == 0 else 670.0
-		var y := 145.0 + row * 67.0
-		var occupied := i < equipped_plants.size()
-		draw_string(ThemeDB.fallback_font,Vector2(base_x,y+20),"植物卡槽 %d" % (i + 1),HORIZONTAL_ALIGNMENT_LEFT,145,17,Color.WHITE if occupied else Color("#88a59f"))
-		var current_name: String = "当前：" + str(PLANT_DATA[equipped_plants[i]].name) if occupied else "尚未装备"
-		draw_string(ThemeDB.fallback_font,Vector2(base_x,y+40),current_name,HORIZONTAL_ALIGNMENT_LEFT,145,12,Color("#b9d6d0") if occupied else Color("#688680"))
-		var key_rect := Rect2(base_x+155,y,120,44)
-		var waiting := binding_target == i
-		draw_panel(key_rect,Color("#b3ad5c") if waiting else Color("#477772"),Color("#fff0a0") if waiting else Color("#8ab9b1"),3)
-		draw_string(ThemeDB.fallback_font,Vector2(key_rect.position.x,key_rect.position.y+29),"请按键…" if waiting else key_name(plant_keys[i]),HORIZONTAL_ALIGNMENT_CENTER,key_rect.size.x,17,Color.WHITE)
-	draw_string(ThemeDB.fallback_font,Vector2(445,516),"铲子",HORIZONTAL_ALIGNMENT_LEFT,125,20,Color.WHITE)
-	var shovel_rect := Rect2(580,487,120,44)
-	var shovel_waiting := binding_target == -1
-	draw_panel(shovel_rect,Color("#b3ad5c") if shovel_waiting else Color("#765f48"),Color("#fff0a0") if shovel_waiting else Color("#b89b78"),3)
-	draw_string(ThemeDB.fallback_font,Vector2(580,516),"请按键…" if shovel_waiting else key_name(shovel_key),HORIZONTAL_ALIGNMENT_CENTER,120,17,Color.WHITE)
-	draw_panel(Rect2(350,585,580,58),Color("#bceee6"),Color("#184d4b"),4)
-	draw_string(ThemeDB.fallback_font,Vector2(350,623),"返回更多设置",HORIZONTAL_ALIGNMENT_CENTER,580,23,Color("#173c3a"))
-
-func draw_volume_slider(label: String, value: float, y: float) -> void:
-	draw_string(ThemeDB.fallback_font,Vector2(300,y+9),label,HORIZONTAL_ALIGNMENT_LEFT,110,27,Color.WHITE)
-	draw_rect(Rect2(445,y-7,380,20),Color("#c9e5e2"))
-	draw_rect(Rect2(449,y-3,372*value,12),Color("#64b8ad"))
-	var knob_x := 445.0 + 380.0 * value
-	draw_circle(Vector2(knob_x,y+3),20,Color("#d9f3ef"))
-	draw_circle(Vector2(knob_x,y+3),15,Color("#70c3b8"))
-	draw_string(ThemeDB.fallback_font,Vector2(850,y+9),str(roundi(value*100))+"%",HORIZONTAL_ALIGNMENT_LEFT,70,18,Color("#e8f7f4"))
-
-func draw_pause_icon_button(rect: Rect2, kind: String, label: String) -> void:
-	draw_panel(rect,Color("#66b7ad"),Color("#173f3e"),4)
-	var center := Vector2(rect.position.x+rect.size.x/2.0,rect.position.y+40)
-	match kind:
-		"door":
-			draw_rect(Rect2(center+Vector2(-23,-25),Vector2(36,48)),Color("#f1f4e9"))
-			draw_rect(Rect2(center+Vector2(-17,-19),Vector2(24,36)),Color("#8fd2ca"))
-			draw_colored_polygon(PackedVector2Array([center+Vector2(27,-12),center+Vector2(10,0),center+Vector2(27,12)]),Color.WHITE)
-			draw_line(center+Vector2(11,0),center+Vector2(38,0),Color.WHITE,6)
-		"gear":
-			for i in 8:
-				var a := i*TAU/8.0
-				draw_rect(Rect2(center+Vector2(cos(a),sin(a))*27-Vector2(5,5),Vector2(10,10)),Color.WHITE)
-			draw_circle(center,25,Color.WHITE); draw_circle(center,11,Color("#3d8179"))
-		"restart":
-			draw_arc(center,25,-1.0,4.8,20,Color.WHITE,8)
-			draw_colored_polygon(PackedVector2Array([center+Vector2(-28,-20),center+Vector2(-8,-23),center+Vector2(-22,-5)]),Color.WHITE)
-	draw_string(ThemeDB.fallback_font,Vector2(rect.position.x,rect.position.y+91),label,HORIZONTAL_ALIGNMENT_CENTER,rect.size.x,17,Color.WHITE)
-
-func draw_end_overlay() -> void:
-	draw_rect(Rect2(0,0,W,H),Color(0.03,0.08,0.07,.76))
-	var won:=game_state=="win"
-	draw_string(ThemeDB.fallback_font,Vector2(0,230),"%s完成！" % level_title(current_level) if won else "僵尸攻破了花园",HORIZONTAL_ALIGNMENT_CENTER,1280,54,Color("#ffe36c") if won else Color("#f06b5e"))
-	var reward: String = LEVEL_DATA[current_level].reward
-	if won and reward != "":
-		draw_panel(Rect2(445,275,390,155),Color("#315a48"),Color("#ffe074"),5)
-		draw_plant_shape(reward,Vector2(520,355),1.0)
-		draw_string(ThemeDB.fallback_font,Vector2(575,330),"获得新植物",HORIZONTAL_ALIGNMENT_LEFT,220,20,Color("#cde5c5"))
-		draw_string(ThemeDB.fallback_font,Vector2(575,370),PLANT_DATA[reward].name,HORIZONTAL_ALIGNMENT_LEFT,220,32,Color("#ffe36c"))
-	elif won:
-		draw_string(ThemeDB.fallback_font,Vector2(0,340),"当前主线已经全部完成！",HORIZONTAL_ALIGNMENT_CENTER,1280,27,Color.WHITE)
-	else:
-		draw_string(ThemeDB.fallback_font,Vector2(0,330),"调整阵型，再试一次吧。",HORIZONTAL_ALIGNMENT_CENTER,1280,24,Color.WHITE)
-	draw_panel(Rect2(470,500,340,68),Color("#6aa746"),Color("#d9e378"),4)
-	var button_text := "重试本关" if not won else ("进入下一关" if current_level < LEVEL_DATA.size() else "返回主菜单")
-	draw_string(ThemeDB.fallback_font,Vector2(470,545),button_text,HORIZONTAL_ALIGNMENT_CENTER,340,30,Color("#183421"))

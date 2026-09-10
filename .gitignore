@@ -4,6 +4,7 @@ preview.png
 preview.png.import
 build/
 dist/
+art_backups/
 export_templates/
 feature_profiles/
 script_templates/
