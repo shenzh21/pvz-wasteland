@@ -35,6 +35,24 @@ static func midi_frequency(note: int) -> float:
 	return 440.0*pow(2.0,float(note-69)/12.0)
 
 static func music_theme_data(theme: String) -> Dictionary:
+	if theme=="wildland":
+		# 32小节：风笛式短句、拨弦应答、低音鼓；四段发展后回到主题。
+		return {
+			"step":0.29,
+			"chords":[[45,48,52],[45,48,52],[46,50,53],[45,49,52],[43,46,50],[41,45,48],[40,44,47],[45,48,52],
+				[45,48,52],[48,52,55],[50,53,57],[46,50,53],[43,47,50],[46,50,53],[40,44,47],[40,44,47],
+				[53,57,60],[52,55,59],[50,53,57],[48,52,55],[46,50,53],[45,48,52],[40,44,47],[45,48,52],
+				[45,48,52],[46,50,53],[43,46,50],[45,48,52],[41,45,48],[46,50,53],[40,44,47],[45,48,52]],
+			"melodies":[
+				[69,-1,70,73,76,-1,73,-1,70,69,-1,64,65,-1,64,-1],
+				[65,-1,69,70,73,-1,70,69,68,-1,64,-1,69,-1,-1,-1],
+				[76,73,-1,76,77,76,73,-1,74,-1,77,76,74,-1,70,-1],
+				[70,74,73,-1,70,69,-1,67,68,-1,71,76,73,-1,68,-1],
+				[77,-1,81,-1,79,77,76,-1,74,-1,77,76,74,72,-1,69],
+				[70,-1,74,73,70,-1,69,-1,68,71,76,-1,73,70,69,-1],
+				[69,-1,-1,70,73,-1,76,-1,74,73,70,-1,69,-1,64,-1],
+				[65,69,70,-1,73,70,69,-1,68,64,-1,68,69,-1,-1,-1]]
+		}
 	if theme=="frontyard":
 		return {
 			"step":0.27,
@@ -97,7 +115,11 @@ static func create_music(theme := "menu") -> AudioStreamWAV:
 			var frequency: float = midi_freqs[note]
 			var note_envelope := minf(local_time/0.018,1.0)*minf((step_time-local_time)/0.075,1.0)
 			var phase := local_time*frequency*TAU
-			if theme=="frontyard":
+			if theme=="wildland":
+				var reed := sin(phase+0.18*sin(local_time*TAU*5.5))
+				var pluck := exp(-local_time*10.0)
+				value += (reed*0.085+sin(phase*2.0)*0.025+sin(phase*3.0)*0.018)*note_envelope*(0.65+pluck*0.35)
+			elif theme=="frontyard":
 				value += (sin(phase)*0.13+sin(phase*2.0)*0.035)*note_envelope
 			elif theme=="wasteland":
 				value += (sin(phase)*0.11+sin(phase*3.0)*0.032)*note_envelope
@@ -119,7 +141,15 @@ static func create_music(theme := "menu") -> AudioStreamWAV:
 		var hit_decay := maxf(0.0,1.0-hit_progress)
 		var hit_decay_2 := hit_decay*hit_decay
 		var hit_decay_4 := hit_decay_2*hit_decay_2
-		if theme=="frontyard":
+		if theme=="wildland":
+			if step_in_bar in [0,3,5]:
+				value += sin(TAU*(70.0*local_time-40.0*local_time*local_time))*hit_decay_4*0.13
+			if step_in_bar in [2,6,7]:
+				value += sin(local_time*1777.0*TAU)*sin(local_time*2413.0*TAU)*hit_decay_4*0.042
+			if bar_index%8>=4:
+				var answer := int(chord[step_in_bar%3])+12
+				value += (sin(local_time*midi_freqs[answer]*TAU)+0.25*sin(local_time*midi_freqs[answer]*2.0*TAU))*minf(local_time/0.008,1.0)*hit_decay_4*0.045
+		elif theme=="frontyard":
 			if step_in_bar in [0,4]:
 				value += sin(local_time*(92.0-45.0*hit_progress)*TAU)*hit_decay_4*0.10
 			if step_in_bar%2==1:

@@ -46,13 +46,16 @@ static func load_campaign(path: String, defaults: Dictionary, level_data: Dictio
 	result.item_inventory = result.item_inventory.duplicate(true)
 	result.item_inventory.air_bomb = clampi(int(config.get_value("items","air_bomb",result.item_inventory.air_bomb)),0,3)
 	result.item_inventory.sun_pack = clampi(int(config.get_value("items","sun_pack",result.item_inventory.sun_pack)),0,99)
+	result.sun_shovel_level = clampi(int(config.get_value("upgrades","sun_shovel",result.sun_shovel_level)),0,2)
+	result.starting_sun_level = clampi(int(config.get_value("upgrades","starting_sun",0)),0,2)
 	result.claimed_money_bags = {}
 	for value in config.get_value("rewards","money_bags",[]):
 		var level := int(value)
 		if level>=1 and level<=level_data.size():
 			result.claimed_money_bags[level] = true
 	if result.campaign_completed and result.unlocked_level < level_data.size():
-		result.unlocked_level = level_data.size()
+		# 旧版全通只意味着旧末关已完成；新增多关时只能开放紧接的一关。
+		result.unlocked_level += 1
 		result.campaign_completed = false
 		config.set_value("campaign", "unlocked_level", result.unlocked_level)
 		config.set_value("campaign", "completed", false)
@@ -70,13 +73,15 @@ static func load_campaign(path: String, defaults: Dictionary, level_data: Dictio
 
 static func save_campaign(path: String, state: Dictionary, level_count: int) -> void:
 	var config := ConfigFile.new()
-	config.set_value("save", "version", 2)
+	config.set_value("save", "version", 3)
 	config.set_value("campaign", "unlocked_level", state.unlocked_level)
 	config.set_value("campaign", "high_score", state.high_score)
 	config.set_value("campaign", "completed", state.campaign_completed)
 	config.set_value("economy","money",state.money)
 	config.set_value("items","air_bomb",state.item_inventory.air_bomb)
 	config.set_value("items","sun_pack",state.item_inventory.sun_pack)
+	config.set_value("upgrades","sun_shovel",state.sun_shovel_level)
+	config.set_value("upgrades","starting_sun",state.get("starting_sun_level",0))
 	var claimed_levels: Array[int] = []
 	for level in state.claimed_money_bags:
 		if bool(state.claimed_money_bags[level]): claimed_levels.append(int(level))

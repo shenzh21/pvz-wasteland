@@ -1,6 +1,15 @@
 extends RefCounted
 # Shared SVG canvas: 240 x 360. World anchor: (132, 210).
 const ORIGIN := Vector2(132,210)
+const GIANT_TORSO := preload("res://assets/zombies/giant/torso.svg")
+const GIANT_PARTS := {
+	"head": preload("res://assets/zombies/giant/head.svg"),
+	"jaw": preload("res://assets/zombies/giant/jaw.svg"),
+	"far_upper_arm": preload("res://assets/zombies/giant/far_upper_arm.svg"),
+	"near_upper_arm": preload("res://assets/zombies/giant/near_upper_arm.svg"),
+	"far_forearm": preload("res://assets/zombies/giant/far_forearm.svg"),
+	"near_forearm": preload("res://assets/zombies/giant/near_forearm.svg"),
+}
 const UNIT := 0.46
 const PARTS := {
 	"far_thigh": preload("res://assets/zombies/basic/parts/far_thigh.svg"),
@@ -19,6 +28,15 @@ const PARTS := {
 	"head": preload("res://assets/zombies/basic/parts/head.svg"),
 	"jaw": preload("res://assets/zombies/basic/parts/jaw.svg"),
 	"stump": preload("res://assets/zombies/basic/parts/stump.svg"),
+}
+const BASKET_PARTS := {
+	"torso": preload("res://assets/zombies/basket/parts/torso.svg"),
+	"far_upper_arm": preload("res://assets/zombies/basket/parts/far_upper_arm.svg"),
+	"near_upper_arm": preload("res://assets/zombies/basket/parts/near_upper_arm.svg"),
+	"far_thigh": preload("res://assets/zombies/basket/parts/far_thigh.svg"),
+	"near_thigh": preload("res://assets/zombies/basket/parts/near_thigh.svg"),
+	"far_calf": preload("res://assets/zombies/basket/parts/far_calf.svg"),
+	"near_calf": preload("res://assets/zombies/basket/parts/near_calf.svg"),
 }
 const PIVOTS := {
 	"far_thigh": Vector2(126,239),
@@ -57,6 +75,8 @@ static func pose(z: Dictionary) -> Dictionary:
 	var sway := sin(idle_time*1.65) if idle else 0.0
 	var arm_sway := sin(idle_time*1.65-0.5) if idle else 0.0
 	var bob := sin(t*rate*2.0)*1.1 if walking else sin(idle_time*3.3)*0.7 if idle else 0.0
+	if z.get("kind","")=="basket" and int(z.get("throw_phase",0))==1:
+		bob += 8.0*sin(PI*clampf(float(z.get("throw_time",0.0))/1.2,0.0,1.0))
 	# 摇摆僵尸以较慢的四拍感摆动上半身；啃食时收住动作，腿仍只跟随实际行走。
 	var swing_amount := 1.0 if is_swing and not biting else 0.0
 	var swing_beat := sin(t*4.35)*swing_amount
@@ -82,6 +102,26 @@ static func pose(z: Dictionary) -> Dictionary:
 	m.head = body * Transform2D(0.0,Vector2(-8*bite,2*bite)) * turn_part("head",-.025*bite+sway*.01-swing_beat*.045-lane_lean*.35)
 	m.jaw = m.head * Transform2D(0.0,Vector2(0,4*bite)) * turn_part("jaw",-.09*bite)
 	m.stump = body
+	if z.get("kind","")=="basket" and int(z.get("throw_phase",0))<3:
+		var phase := int(z.get("throw_phase",0))
+		var lift := smoothstep(0.25,1.0,float(z.get("throw_time",0.0))/1.2) if phase==1 else 1.0 if phase==2 else 0.0
+		var follow := clampf(float(z.get("throw_time",0.0))/0.35,0.0,1.0) if phase==2 else 0.0
+		m.far_upper_arm = body * turn_part("far_upper_arm",lerpf(0.15,2.7,lift)*(1.0-follow))
+		m.far_forearm = m.far_upper_arm * turn_part("far_forearm",lerpf(-1.35,-0.35,lift)*(1.0-follow))
+		m.near_upper_arm = body * turn_part("near_upper_arm",lerpf(0.25,1.6,lift)*(1.0-follow))
+		m.near_forearm = m.near_upper_arm * turn_part("near_forearm",0.65*(1.0-follow))
+	if z.get("kind","")=="giant":
+		var throwing: bool = not z.get("imp_thrown",false) and float(z.get("giant_throw_time",0.0))>0.0
+		var motion := clampf(float(z.get("giant_throw_time",0.0))/1.1,0.0,1.0) if throwing else clampf(float(z.get("smash_time",0.0))/1.25,0.0,1.0)
+		var lift := sin(motion*PI*0.5) if throwing else smoothstep(0.0,0.65,motion)*(1.0-smoothstep(0.75,1.0,motion))
+		var follow := clampf(float(z.get("giant_follow",0.0))/0.3,0.0,1.0)
+		if follow>0.0:
+			throwing = true
+			lift = follow
+		m.far_upper_arm = body*turn_part("far_upper_arm",0.1 if throwing else 2.6*lift)
+		m.far_forearm = m.far_upper_arm*turn_part("far_forearm",0.0 if throwing else -0.5*lift)
+		m.near_upper_arm = body*turn_part("near_upper_arm",(2.9 if throwing else 1.2)*lift)
+		m.near_forearm = m.near_upper_arm*turn_part("near_forearm",0.35*lift)
 	return m
 
 static func draw(view: Node2D, z: Dictionary, pos: Vector2, size: float, parent: Transform2D = Transform2D.IDENTITY) -> Vector2:
@@ -91,11 +131,19 @@ static func draw(view: Node2D, z: Dictionary, pos: Vector2, size: float, parent:
 	var tint := Color(0.72,1.0,1.12) if float(z.get("slow",0.0))>0.0 else Color.WHITE
 	var lost: bool = z.get("arm_lost",false)
 	var flag: bool = z.get("kind", "normal")=="flag"
+	var basketball_uniform: bool = z.get("kind", "")=="basket"
+	var giant: bool = z.get("kind","")=="giant"
 	for id in ORDER:
+		if basketball_uniform and id=="tie": continue
+		if giant and id=="tie": continue
 		if lost and id in ["near_upper_arm","near_forearm"]: continue
 		if flag and id in ["far_upper_arm","far_forearm"]: continue
 		view.draw_set_transform_matrix(parent * base * m[id])
-		view.draw_texture_rect(PARTS[id],Rect2(0,0,240,360),false,tint)
+		var texture: Texture2D = BASKET_PARTS.get(id,PARTS[id]) if basketball_uniform else PARTS[id]
+		if giant:
+			if id=="torso": texture = GIANT_TORSO
+			elif GIANT_PARTS.has(id): texture = GIANT_PARTS[id]
+		view.draw_texture_rect(texture,Rect2(0,0,240,360),false,tint)
 	if lost:
 		view.draw_set_transform_matrix(parent * base * m.stump)
 		view.draw_texture_rect(PARTS.stump,Rect2(0,0,240,360),false,tint)

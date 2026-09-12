@@ -12,6 +12,7 @@ func set_world_draw_offset(offset: Vector2) -> void:
 	draw_set_transform_matrix(art_parent_transform)
 
 const ZombieArt := preload("res://scripts/zombie_art.gd")
+const WildlandArt := preload("res://scripts/wildland_art.gd")
 
 const GameData := preload("res://scripts/game_data.gd")
 const W := GameData.W
@@ -49,6 +50,7 @@ var projectiles: Array = []
 var suns: Array = []
 var coins: Array = []
 var particles: Array = []
+var pepper_fires: Array = []
 var yam_minions: Array = []
 var detached_arms: Array = []
 var dropped_armor: Array = []
@@ -111,10 +113,20 @@ var campaign_completed := false
 var saved_loadouts := {}
 var money := 0
 var item_inventory := {"air_bomb":0,"sun_pack":0}
+var sun_shovel_level := 0
+var starting_sun_level := 0
 var claimed_money_bags := {}
 var level_money_earned := 0
 var mower_bonus_count := 0
 var reward_bag_awarded := false
+var sand_clock := 90.0
+var sand_buff := 0.0
+
+func is_wildland_level() -> bool:
+	return String(LEVEL_DATA[current_level].get("map",""))=="wildland"
+
+func sand_speed_multiplier() -> float:
+	return 1.5 if is_wildland_level() and sand_buff>0.0 else 1.0
 
 func key_name(keycode: int) -> String:
 	var result := OS.get_keycode_string(keycode)
@@ -130,10 +142,13 @@ func level_title(level: int) -> String:
 func is_wasteland_level() -> bool:
 	var data: Dictionary = LEVEL_DATA[current_level]
 	var default_map := "wasteland" if data.world=="荒地" else "frontyard"
-	return String(data.get("map",default_map))=="wasteland"
+	return String(data.get("map",default_map)) in ["wasteland","wildland"]
 
 func has_fixed_loadout() -> bool:
 	return bool(LEVEL_DATA[current_level].get("fixed_loadout",false))
+
+func is_plant_locked(kind: String) -> bool:
+	return kind in LEVEL_DATA[current_level].get("locked_plants",[])
 
 func is_plantable_cell(row: int) -> bool:
 	return not is_wasteland_level() or row % 2 == 0
@@ -171,7 +186,12 @@ func almanac_item_rect(index: int) -> Rect2:
 
 func get_plant(col: int, row: int):
 	for p in plants:
-		if not p.dead and p.col == col and p.row == row: return p
+		if not p.dead and p.kind!="pumpkin" and p.col == col and p.row == row: return p
+	return null
+
+func get_pumpkin(col: int, row: int):
+	for p in plants:
+		if not p.dead and p.kind=="pumpkin" and p.col==col and p.row==row: return p
 	return null
 
 func card_rect(index: int) -> Rect2:
@@ -236,28 +256,47 @@ func draw_shop_screen() -> void:
 	draw_string(ThemeDB.fallback_font,Vector2(0,72),"商店",HORIZONTAL_ALIGNMENT_CENTER,1280,44,Color("#ffe17a"))
 	draw_coin_icon(Vector2(1040,58),"gold",0.8)
 	draw_string(ThemeDB.fallback_font,Vector2(1075,67),"资金  %d"%money,HORIZONTAL_ALIGNMENT_LEFT,180,24,Color("#ffe8a0"))
-	var kinds := ["air_bomb","sun_pack"]
+	var kinds := ["air_bomb","sun_pack","sun_shovel","starting_sun"]
 	for i in kinds.size():
 		var kind: String = kinds[i]
-		var data: Dictionary = ITEM_DATA[kind]
-		var rect := Rect2(210+i*450,180,410,320)
-		var owned := int(item_inventory.get(kind,0))
-		var full := owned>=int(data.max_owned)
-		var affordable := money>=int(data.price)
-		draw_panel(rect,Color("#385c4c"),Color("#d8c36f"),5)
-		draw_item_icon(kind,Vector2(rect.position.x+205,rect.position.y+78),1.5)
-		draw_string(ThemeDB.fallback_font,Vector2(rect.position.x,rect.position.y+154),data.name,HORIZONTAL_ALIGNMENT_CENTER,rect.size.x,30,Color.WHITE)
-		draw_string(ThemeDB.fallback_font,Vector2(rect.position.x+35,rect.position.y+194),data.summary,HORIZONTAL_ALIGNMENT_CENTER,340,16,Color("#c9ddd0"))
-		draw_string(ThemeDB.fallback_font,Vector2(rect.position.x,rect.position.y+222),"单价：%d"%int(data.price),HORIZONTAL_ALIGNMENT_CENTER,rect.size.x,20,Color("#ffd765"))
-		draw_string(ThemeDB.fallback_font,Vector2(rect.position.x,rect.position.y+246),"持有：%d%s"%[owned," / 3" if kind=="air_bomb" else ""],HORIZONTAL_ALIGNMENT_CENTER,rect.size.x,17,Color("#e6eedf"))
-		var button := Rect2(rect.position.x+90,rect.position.y+264,230,48)
-		draw_panel(button,Color("#40514b") if full or not affordable else Color("#a86c38"),Color("#e4c878"),3)
-		var label := "已达到持有上限" if full else ("资金不足" if not affordable else "购买")
-		draw_string(ThemeDB.fallback_font,Vector2(button.position.x,button.position.y+32),label,HORIZONTAL_ALIGNMENT_CENTER,button.size.x,19,Color.WHITE if not full else Color("#aeb9b4"))
+		var rect := shop_card_rect(i)
+		var sun_upgrade := kind=="starting_sun"
+		var permanent := kind in ["sun_shovel","starting_sun"]
+		var upgrade_unlocked := unlocked_level>=(GameData.STARTING_SUN_UNLOCK_LEVEL if sun_upgrade else GameData.SUN_SHOVEL_UNLOCK_LEVEL)
+		var data: Dictionary = {} if permanent else ITEM_DATA[kind]
+		var owned := starting_sun_level if sun_upgrade else sun_shovel_level if permanent else int(item_inventory.get(kind,0))
+		var full := owned>=2 if permanent else owned>=int(data.max_owned)
+		var prices: Array = GameData.STARTING_SUN_PRICES if sun_upgrade else GameData.SUN_SHOVEL_PRICES
+		var price := int(prices[owned]) if permanent and not full else 0 if permanent else int(data.price)
+		var affordable := money>=price
+		draw_panel(rect,Color("#385c4c") if not permanent or upgrade_unlocked else Color("#33453f"),Color("#d8c36f") if not permanent or upgrade_unlocked else Color("#687a73"),5)
+		draw_item_icon(kind,Vector2(rect.position.x+rect.size.x/2.0,rect.position.y+72),1.35)
+		var item_name := "新增初始阳光" if sun_upgrade else "阳光铲" if permanent else String(data.name)
+		draw_string(ThemeDB.fallback_font,Vector2(rect.position.x,rect.position.y+143),item_name,HORIZONTAL_ALIGNMENT_CENTER,rect.size.x,27,Color.WHITE if not permanent or upgrade_unlocked else Color("#9caaa4"))
+		var summary := "每级永久增加100初始阳光，所有关卡生效。" if sun_upgrade else "铲除植物时永久返还其价格的一部分阳光。" if permanent else String(data.summary)
+		draw_wrapped_text(summary,Rect2(rect.position.x+24,rect.position.y+157,rect.size.x-48,45),15,Color("#c9ddd0"),3.0)
+		var price_text := "已升满" if permanent and full else "价格：%d"%price
+		draw_string(ThemeDB.fallback_font,Vector2(rect.position.x,rect.position.y+225),price_text,HORIZONTAL_ALIGNMENT_CENTER,rect.size.x,19,Color("#ffd765"))
+		var status := "等级：%d / 2（返还%d%%）"%[owned,roundi(GameData.SUN_SHOVEL_RATES[owned]*100.0)] if permanent else "持有：%d%s"%[owned," / 3" if kind=="air_bomb" else ""]
+		if sun_upgrade: status = "等级：%d / 2（初始%d）"%[owned,150+owned*100]
+		draw_string(ThemeDB.fallback_font,Vector2(rect.position.x,rect.position.y+251),status,HORIZONTAL_ALIGNMENT_CENTER,rect.size.x,16,Color("#e6eedf"))
+		var button := shop_buy_rect(i)
+		var disabled := full or not affordable or (permanent and not upgrade_unlocked)
+		draw_panel(button,Color("#40514b") if disabled else Color("#a86c38"),Color("#e4c878") if not (permanent and not upgrade_unlocked) else Color("#667873"),3)
+		var label := "完成荒地-第14关解锁" if permanent and not upgrade_unlocked else "已升满" if full else "资金不足" if not affordable else "购买永久升级" if permanent else "购买"
+		if sun_upgrade and not upgrade_unlocked: label = "完成荒地-第20关解锁"
+		draw_string(ThemeDB.fallback_font,Vector2(button.position.x,button.position.y+31),label,HORIZONTAL_ALIGNMENT_CENTER,button.size.x,16 if permanent else 19,Color.WHITE if not disabled else Color("#aeb9b4"))
 	draw_panel(Rect2(50,635,190,58),Color("#496b60"),Color("#9abcb0"),3)
 	draw_string(ThemeDB.fallback_font,Vector2(50,673),"返回主菜单",HORIZONTAL_ALIGNMENT_CENTER,190,22,Color.WHITE)
 	if message_time>0.0:
 		draw_string(ThemeDB.fallback_font,Vector2(280,590),message,HORIZONTAL_ALIGNMENT_CENTER,720,20,Color("#fff0a0"))
+
+func shop_card_rect(index: int) -> Rect2:
+	return Rect2(30+index*310,165,290,330)
+
+func shop_buy_rect(index: int) -> Rect2:
+	var rect := shop_card_rect(index)
+	return Rect2(rect.position+Vector2(20,272),Vector2(rect.size.x-40,48))
 
 func level_select_rect(index: int) -> Rect2:
 	return Rect2(35.0+(index-level_select_offset)*240.0,250.0,210.0,190.0)
@@ -270,12 +309,12 @@ func draw_level_select_screen() -> void:
 		if segment_x >= W or segment_x+240.0 <= 0.0:
 			continue
 		var world := String(LEVEL_DATA[i+1].world)
-		var base_color := Color("#b78a4e") if world=="荒地" else Color("#76bd4b")
+		var base_color := Color("#85866c") if world=="芜地" else Color("#b77b41") if world=="荒地" else Color("#76bd4b")
 		draw_rect(Rect2(segment_x,120,240,510),base_color)
 		for row in 5:
-			if world=="荒地" and row%2==0:
-				draw_rect(Rect2(segment_x,120+row*102,240,102),Color("#c69b58"))
-			elif world!="荒地" and (row+i)%2==0:
+			if world in ["荒地","芜地"] and row%2==1:
+				draw_rect(Rect2(segment_x,120+row*102,240,102),Color("#c9c09a") if world=="芜地" else Color("#d5a15b"))
+			elif world=="前院" and (row+i)%2==0:
 				draw_rect(Rect2(segment_x,120+row*102,240,102),Color(0.12,0.25,0.06,0.08))
 	draw_rect(Rect2(0,0,W,120),Color("#203e38"))
 	draw_rect(Rect2(0,114,W,6),Color("#dcc86e"))
@@ -289,7 +328,10 @@ func draw_level_select_screen() -> void:
 		var level := i+1
 		var unlocked := level <= unlocked_level
 		var completed := level < unlocked_level or campaign_completed
-		draw_panel(rect,Color("#507a50") if unlocked else Color("#46504a"),Color("#ffe278") if level==unlocked_level else Color("#91aa83"),5 if level==unlocked_level else 3)
+		var world := String(LEVEL_DATA[level].world)
+		var card_color := Color("#686c50") if world=="芜地" else Color("#87603c") if world=="荒地" else Color("#507a50")
+		var border_color := Color("#d0c9a4") if world=="芜地" else Color("#e5b678") if world=="荒地" else Color("#91aa83")
+		draw_panel(rect,card_color if unlocked else card_color.darkened(0.3),Color("#ffe278") if level==unlocked_level else border_color,5 if level==unlocked_level else 3)
 		draw_circle(Vector2(rect.position.x+rect.size.x/2,rect.position.y+62),38,Color("#f0cf59") if unlocked else Color("#68736d"))
 		draw_string(ThemeDB.fallback_font,Vector2(rect.position.x,rect.position.y+76),str(LEVEL_DATA[level].stage) if unlocked else "锁",HORIZONTAL_ALIGNMENT_CENTER,rect.size.x,30,Color("#28412d") if unlocked else Color("#b6c0ba"))
 		draw_string(ThemeDB.fallback_font,Vector2(rect.position.x,rect.position.y+128),level_title(level),HORIZONTAL_ALIGNMENT_CENTER,rect.size.x,24,Color.WHITE if unlocked else Color("#9aa59f"))
@@ -382,12 +424,14 @@ func draw_plant_detail(kind: String) -> void:
 		draw_detail_row("准备时间",str(data.arm_time)+" 秒",406,Color.WHITE)
 	elif kind == "yam_guard":
 		draw_detail_row("重生 / 空闲回血","%s秒 / %d" % [str(data.respawn),roundi(data.heal)],406,Color.WHITE)
+	elif kind in ["cherry","bbq_mushroom"]:
+		draw_detail_row("引爆时间",str(data.interval)+" 秒",406,Color.WHITE)
 	else:
 		draw_detail_row("攻击间隔",str(data.interval)+" 秒" if data.interval > 0 else "无",406,Color.WHITE if data.interval > 0 else Color("#819c94"))
 	draw_line(Vector2(650,432),Vector2(1170,432),Color("#52776d"),2)
-	draw_string(ThemeDB.fallback_font,Vector2(650,469),info.summary,HORIZONTAL_ALIGNMENT_LEFT,520,18,Color("#e4eee9"))
-	draw_string(ThemeDB.fallback_font,Vector2(650,511),"使用建议",HORIZONTAL_ALIGNMENT_LEFT,120,17,Color("#ffe27a"))
-	draw_string(ThemeDB.fallback_font,Vector2(650,548),info.tip,HORIZONTAL_ALIGNMENT_LEFT,520,17,Color("#b7d1c8"))
+	draw_wrapped_text(String(info.summary),Rect2(650,445,520,52),18,Color("#e4eee9"),5.0)
+	draw_string(ThemeDB.fallback_font,Vector2(650,521),"使用建议",HORIZONTAL_ALIGNMENT_LEFT,120,17,Color("#ffe27a"))
+	draw_wrapped_text(String(info.tip),Rect2(650,532,520,58),17,Color("#b7d1c8"),5.0)
 
 func draw_zombie_detail(kind: String) -> void:
 	var info: Dictionary = ZOMBIE_INFO[kind]
@@ -396,17 +440,46 @@ func draw_zombie_detail(kind: String) -> void:
 	draw_string(ThemeDB.fallback_font,Vector2(850,253),info.role,HORIZONTAL_ALIGNMENT_LEFT,310,18,Color("#b9c899"))
 	if kind=="charger":
 		draw_detail_row("钢盔 / 本体","1500 / 190",303,Color("#ef9a7e"))
+	elif kind=="copper":
+		draw_detail_row("铜球 / 本体","2100 / 190",303,Color("#ef9a7e"))
 	else:
 		draw_detail_row("生命值",str(info.hp),303,Color("#ef9a7e"))
 	draw_detail_row("移动速度",str(info.speed),338,Color.WHITE)
 	if kind=="kart":
 		draw_detail_row("攻击方式","碾压植物",373,Color.WHITE)
 	else:
-		draw_detail_row("每秒伤害","%0.1f"%ZOMBIE_DPS,373,Color.WHITE)
+		draw_detail_row("攻击效果" if kind=="giant" else "每秒伤害","秒杀" if kind=="giant" else "%0.1f"%ZOMBIE_DPS,373,Color.WHITE)
 	draw_line(Vector2(650,415),Vector2(1170,415),Color("#52776d"),2)
-	draw_string(ThemeDB.fallback_font,Vector2(650,457),info.summary,HORIZONTAL_ALIGNMENT_LEFT,520,19,Color("#e4eee9"))
-	draw_string(ThemeDB.fallback_font,Vector2(650,510),"应对建议",HORIZONTAL_ALIGNMENT_LEFT,120,17,Color("#ffe27a"))
-	draw_string(ThemeDB.fallback_font,Vector2(650,548),info.tip,HORIZONTAL_ALIGNMENT_LEFT,520,17,Color("#b7d1c8"))
+	draw_wrapped_text(String(info.summary),Rect2(650,430,520,55),19,Color("#e4eee9"),4.0)
+	draw_string(ThemeDB.fallback_font,Vector2(650,511),"应对建议",HORIZONTAL_ALIGNMENT_LEFT,120,17,Color("#ffe27a"))
+	draw_wrapped_text(String(info.tip),Rect2(650,522,520,66),17,Color("#b7d1c8"),5.0)
+
+func draw_wrapped_text(text: String, rect: Rect2, font_size: int, color: Color, line_gap := 4.0) -> void:
+	var font := ThemeDB.fallback_font
+	var lines: Array[String] = []
+	var current := ""
+	for character in text:
+		if character=="\n":
+			lines.append(current)
+			current = ""
+			continue
+		var candidate := current+character
+		if current!="" and font.get_string_size(candidate,HORIZONTAL_ALIGNMENT_LEFT,-1,font_size).x>rect.size.x:
+			lines.append(current)
+			current = character
+		else:
+			current = candidate
+	if current!="" or lines.is_empty():
+		lines.append(current)
+	var line_height := float(font_size)+line_gap
+	var max_lines := maxi(1,int(floor((rect.size.y+line_gap)/line_height)))
+	for line_index in mini(lines.size(),max_lines):
+		var line := lines[line_index]
+		if line_index==max_lines-1 and lines.size()>max_lines:
+			while line.length()>0 and font.get_string_size(line+"…",HORIZONTAL_ALIGNMENT_LEFT,-1,font_size).x>rect.size.x:
+				line = line.left(line.length()-1)
+			line += "…"
+		draw_string(font,Vector2(rect.position.x,rect.position.y+font_size+line_index*line_height),line,HORIZONTAL_ALIGNMENT_LEFT,rect.size.x,font_size,color)
 
 func draw_detail_row(label: String, value: String, y: float, value_color: Color) -> void:
 	draw_string(ThemeDB.fallback_font,Vector2(850,y),label,HORIZONTAL_ALIGNMENT_LEFT,135,16,Color("#adc8c0"))
@@ -414,9 +487,9 @@ func draw_detail_row(label: String, value: String, y: float, value_color: Color)
 
 func draw_zombie_portrait(kind: String, pos: Vector2, scale: float) -> void:
 	# 匍匐角色横向较长，图鉴缩略图需留出名称与数值栏。
-	var portrait_scale := scale*0.68 if kind=="camo" else scale
+	var portrait_scale := scale*0.68 if kind=="camo" else scale*0.62 if kind=="glider" else scale*0.65 if kind=="giant" else scale
 	draw_zombie({"x":pos.x,"draw_y":pos.y,"draw_scale":portrait_scale,"row":0,"anim":0.0,"slow":0.0,
-		"kind":kind,"hp":1.0,"max_hp":1.0,"walking":false,"biting":false,"hide_bar":true})
+		"kind":kind,"hp":3000.0 if kind=="giant" else 1.0,"max_hp":3000.0 if kind=="giant" else 1.0,"walking":false,"biting":false,"hide_bar":true,"airborne":kind=="glider"})
 
 func draw_prepare_screen() -> void:
 	set_world_draw_offset(Vector2(-prepare_camera_x, 0))
@@ -456,13 +529,19 @@ func draw_plant_selection_panel() -> void:
 			continue
 		var rect := prepare_card_rect(i)
 		var kind: String = available_plants[i]
+		var locked := is_plant_locked(kind)
 		var chosen_index := equipped_plants.find(kind)
 		var chosen := chosen_index >= 0
-		draw_panel(rect,Color("#6a8e55") if chosen else Color("#3d5c50"),Color("#ffe274") if chosen else Color("#789488"),3)
+		draw_panel(rect,Color("#303d39") if locked else (Color("#6a8e55") if chosen else Color("#3d5c50")),Color("#68736e") if locked else (Color("#ffe274") if chosen else Color("#789488")),3)
 		draw_mini_plant(kind,rect.position+Vector2(40,46))
-		draw_string(ThemeDB.fallback_font,rect.position+Vector2(75,33),PLANT_DATA[kind].name,HORIZONTAL_ALIGNMENT_LEFT,79,15,Color.WHITE)
-		draw_string(ThemeDB.fallback_font,rect.position+Vector2(75,61),"阳光 %d" % PLANT_DATA[kind].cost,HORIZONTAL_ALIGNMENT_LEFT,79,13,Color("#ffe16d"))
-		if chosen:
+		draw_string(ThemeDB.fallback_font,rect.position+Vector2(75,33),PLANT_DATA[kind].name,HORIZONTAL_ALIGNMENT_LEFT,79,15,Color("#9ba6a1") if locked else Color.WHITE)
+		draw_string(ThemeDB.fallback_font,rect.position+Vector2(75,61),"本关锁定" if locked else "阳光 %d" % PLANT_DATA[kind].cost,HORIZONTAL_ALIGNMENT_LEFT,79,13,Color("#aeb9b4") if locked else Color("#ffe16d"))
+		if locked:
+			draw_rect(Rect2(rect.position+Vector2(5,5),rect.size-Vector2(10,10)),Color(0.08,0.12,0.11,0.48))
+			draw_arc(rect.position+Vector2(151,16),7,PI,TAU,10,Color("#d2d8d5"),3)
+			draw_rect(Rect2(rect.position+Vector2(143,16),Vector2(16,13)),Color("#aeb8b4"))
+			draw_circle(rect.position+Vector2(151,22),2,Color("#35413d"))
+		elif chosen:
 			draw_circle(rect.position+Vector2(154,14),12,Color("#ffe274"))
 			draw_string(ThemeDB.fallback_font,rect.position+Vector2(142,19),"定" if fixed_loadout else str(chosen_index+1),HORIZONTAL_ALIGNMENT_CENTER,24,11,Color("#294036"))
 	if prepare_pool_max_offset()>0:
@@ -498,12 +577,22 @@ func draw_prepare_slot(index: int, kind: String) -> void:
 
 func draw_world(extended := false) -> void:
 	draw_rect(Rect2(0,0,W + (650.0 if extended else 0.0),H),Color("#9ed76b"))
+	if is_wildland_level():
+		draw_rect(Rect2(0,0,W+(650.0 if extended else 0.0),H),Color("#c2b17c"))
+		for i in range(16):
+			var x := float(i*133)
+			draw_colored_polygon(PackedVector2Array([Vector2(x,138),Vector2(x+65,91+i%3*9),Vector2(x+155,138)]),Color("#ad9d6f"))
 	# House and path
 	draw_rect(Rect2(0,120,BOARD_X,530),Color("#d6b174"))
 	for y in range(135,640,38): draw_line(Vector2(0,y),Vector2(BOARD_X,y),Color("#b68c59"),2)
 	draw_rect(Rect2(0,120,142,530),Color("#ad594b"))
 	draw_rect(Rect2(22,220,90,150),Color("#513c3f"))
 	draw_rect(Rect2(37,235,60,120),Color("#80bfd0"))
+	if is_wildland_level():
+		draw_rect(Rect2(0,120,142,530),Color("#807653"))
+		for y in range(143,650,43):
+			draw_line(Vector2(0,y),Vector2(142,y-8),Color("#b0a079"),4)
+		draw_line(Vector2(125,130),Vector2(135,650),Color("#514e37"),9)
 	# 关卡准备镜头中的右侧是僵尸候场泥地，草坪仍严格只有 5×9。
 	if extended:
 		var staging_x := BOARD_X + COLS * CELL_W
@@ -534,25 +623,37 @@ func draw_world(extended := false) -> void:
 		for col in draw_cols:
 			var dirt_row := is_wasteland_level() and row % 2 == 1
 			var c := (Color("#c99b55") if (row+col)%2==0 else Color("#bc8c48")) if dirt_row else (Color("#75c84c") if (row+col)%2==0 else Color("#6cbd45"))
+			if is_wildland_level():
+				c = (Color("#c3a873") if col%2==0 else Color("#bca16d")) if dirt_row else (Color("#a1a264") if col%2==0 else Color("#94965b"))
 			draw_rect(Rect2(BOARD_X+col*CELL_W,BOARD_Y+row*CELL_H,CELL_W,CELL_H),c)
+			if is_wildland_level(): WildlandArt.terrain(self,Vector2(BOARD_X+col*CELL_W,BOARD_Y+row*CELL_H),row,col)
 			var seam_color := Color(0.35,0.22,0.08,.28) if dirt_row else Color(0.2,0.45,0.15,.25)
 			draw_line(Vector2(BOARD_X+col*CELL_W,BOARD_Y+row*CELL_H+CELL_H-2),Vector2(BOARD_X+(col+1)*CELL_W,BOARD_Y+row*CELL_H+CELL_H-2),seam_color,2)
 	# dirt borders
 	draw_rect(Rect2(BOARD_X,BOARD_Y-12,draw_cols*CELL_W,12),Color("#77543b"))
 	draw_rect(Rect2(BOARD_X,BOARD_Y+ROWS*CELL_H,draw_cols*CELL_W,18),Color("#77543b"))
 	if hover_cell.x >= 0 and selected != "":
-		var ok := selected=="item_air_bomb" or (get_plant(hover_cell.x,hover_cell.y)==null and is_plantable_cell(hover_cell.y)) or selected=="shovel"
+		var empty := get_pumpkin(hover_cell.x,hover_cell.y)==null if selected=="pumpkin" else get_plant(hover_cell.x,hover_cell.y)==null
+		var ok := selected=="item_air_bomb" or (empty and is_plantable_cell(hover_cell.y)) or selected=="shovel"
 		draw_rect(Rect2(BOARD_X+hover_cell.x*CELL_W,BOARD_Y+hover_cell.y*CELL_H,CELL_W,CELL_H),Color(0.9,1,0.5,.28) if ok else Color(1,0.2,0.2,.28))
 	for m in mowers: draw_mower(m)
-	for p in plants: draw_plant(p)
+	for p in plants:
+		if p.kind=="pumpkin":
+			draw_pumpkin_layer(cell_center(p.col,p.row)+Vector2(0,sin(p.anim*3.0)*2.0),1.0,true)
+	for p in plants:
+		if p.kind!="pumpkin": draw_plant(p)
+	for p in plants:
+		if p.kind=="pumpkin": draw_plant(p)
 	for i in yam_minions.size():
 		draw_yam_minion(yam_minions[i], yam_stack_offset(i))
 	for z in zombies: draw_zombie(z)
+	for fire in pepper_fires: WildlandArt.pepper_fire(self,fire)
 	for arm in detached_arms: draw_detached_arm(arm)
 	for armor in dropped_armor: draw_dropped_armor(armor)
 	for pr in projectiles: draw_projectile(pr)
 	for s in suns: draw_sun(s)
 	for coin in coins: draw_coin(coin)
+	if is_wildland_level(): WildlandArt.wind(self)
 	for p in particles:
 		draw_rect(Rect2(p.pos-Vector2.ONE*p.size/2.0,Vector2.ONE*p.size),Color(p.color,p.life/p.max))
 	if wave_banner_time > 0.0:
@@ -668,14 +769,54 @@ func draw_plant(p: Dictionary) -> void:
 					var bead_pos := (pos+Vector2(9,-5)).lerp(target_pos,float(part+1)/5.0)
 					draw_circle(bead_pos,4,Color("#82d6a8"))
 				break
-	if p.kind == "mine": draw_potato_mine(pos, p.armed, 1.0)
+	if p.kind == "wind_grass": WildlandArt.grass(self,pos,1.0,float(p.get("wind_attack",0.0)))
+	elif p.kind == "pumpkin": draw_pumpkin_layer(pos,1.0,false)
+	elif p.kind == "mine": draw_potato_mine(pos, p.armed, 1.0)
 	else: draw_plant_shape(p.kind,pos,1.0)
 	if show_health_bars and p.hp < p.max_hp:
-		draw_bar(Vector2(pos.x-31,pos.y-49),62,p.hp/p.max_hp,Color("#7de05b"))
+		draw_bar(Vector2(pos.x-31,pos.y+(55 if p.kind=="pumpkin" else -49)),62,p.hp/p.max_hp,Color("#edb14e") if p.kind=="pumpkin" else Color("#7de05b"))
+
+func draw_pumpkin_layer(pos: Vector2, scale: float, back: bool) -> void:
+	pos.y += 12*scale
+	var shell := PackedVector2Array()
+	var rim := PackedVector2Array()
+	if back:
+		for i in range(33):
+			var angle := TAU*i/32.0
+			shell.append(pos+Vector2(cos(angle)*46,18+sin(angle)*23)*scale)
+	else:
+		# 前壁从开口的前半弧开始，不能填满整个开口遮住内部植物。
+		for i in range(17):
+			var angle := PI*i/16.0
+			shell.append(pos+Vector2(cos(angle)*43,3+sin(angle)*13)*scale)
+		for i in range(17):
+			var angle := PI-PI*i/16.0
+			shell.append(pos+Vector2(cos(angle)*46,18+sin(angle)*23)*scale)
+	draw_colored_polygon(shell,Color("#b45d25"))
+	for i in range(17):
+		var angle := PI*i/16.0+(PI if back else 0.0)
+		rim.append(pos+Vector2(cos(angle)*43,3+sin(angle)*13)*scale)
+	draw_polyline(rim,Color("#f4aa45"),6*scale)
+	if back: return
+	for x in [-30,-15,15,30]:
+		draw_line(pos+Vector2(x,17)*scale,pos+Vector2(x*0.8,35)*scale,Color("#d57c2c"),3*scale)
+	draw_colored_polygon(PackedVector2Array([pos+Vector2(-24,18)*scale,pos+Vector2(-10,22)*scale,pos+Vector2(-19,27)*scale]),Color("#463620"))
+	draw_colored_polygon(PackedVector2Array([pos+Vector2(24,18)*scale,pos+Vector2(10,22)*scale,pos+Vector2(19,27)*scale]),Color("#463620"))
+	draw_line(pos+Vector2(-9,32)*scale,pos+Vector2(9,32)*scale,Color("#463620"),3*scale)
 
 func draw_plant_shape(kind: String, pos: Vector2, scale: float) -> void:
+	if kind=="sky_pepper":
+		WildlandArt.pepper(self,pos,scale)
+		return
+	if kind=="wind_grass":
+		WildlandArt.grass(self,pos,scale)
+		return
+	if kind=="pumpkin":
+		draw_pumpkin_layer(pos,scale,true)
+		draw_pumpkin_layer(pos,scale,false)
+		return
 	# stem and leaves
-	if kind not in ["wall","cherry","mine","yam_guard","cactus","slime","squash","short_pea"]:
+	if kind not in ["wall","cherry","mine","yam_guard","cactus","slime","squash","short_pea","bbq_mushroom"]:
 		draw_rect(Rect2(pos+Vector2(-4,9)*scale,Vector2(8,31)*scale),Color("#347c3c"))
 		draw_colored_polygon(PackedVector2Array([pos+Vector2(-3,25)*scale,pos+Vector2(-28,14)*scale,pos+Vector2(-20,36)*scale]),Color("#55a94b"))
 		draw_colored_polygon(PackedVector2Array([pos+Vector2(3,29)*scale,pos+Vector2(27,19)*scale,pos+Vector2(18,40)*scale]),Color("#438e42"))
@@ -686,11 +827,16 @@ func draw_plant_shape(kind: String, pos: Vector2, scale: float) -> void:
 				draw_circle(pos+Vector2(cos(a),sin(a))*21*scale,11*scale,Color("#ffd747"))
 			draw_circle(pos,20*scale,Color("#874b2e")); draw_circle(pos+Vector2(-7,-4)*scale,3*scale,Color("#301f1b")); draw_circle(pos+Vector2(7,-4)*scale,3*scale,Color("#301f1b"))
 			draw_line(pos+Vector2(-7,8)*scale,pos+Vector2(0,11)*scale,Color("#f4be55"),2*scale); draw_line(pos+Vector2(0,11)*scale,pos+Vector2(8,7)*scale,Color("#f4be55"),2*scale)
-		"pea", "snow":
-			var c := Color("#7bd34d") if kind=="pea" else Color("#78dce8")
+		"pea", "snow", "energy_pea":
+			var c := Color("#78dce8") if kind=="snow" else Color("#3ca66a") if kind=="energy_pea" else Color("#7bd34d")
 			draw_circle(pos+Vector2(0,-8)*scale,23*scale,c); draw_circle(pos+Vector2(20,-9)*scale,12*scale,c.darkened(.08)); draw_circle(pos+Vector2(25,-9)*scale,6*scale,Color("#244f3e"))
 			draw_circle(pos+Vector2(-6,-15)*scale,4*scale,Color("#172e28")); draw_circle(pos+Vector2(-5,-16)*scale,1.4*scale,Color.WHITE)
 			if kind=="snow": draw_rect(Rect2(pos+Vector2(-18,-35)*scale,Vector2(30,7)*scale),Color("#e9fbff"))
+			if kind=="energy_pea":
+				draw_arc(pos+Vector2(0,-8)*scale,29*scale,-2.5,2.5,18,Color("#8bffc0"),4*scale)
+				draw_circle(pos+Vector2(25,-9)*scale,3*scale,Color("#b8ffd0"))
+				for angle in [-1.8,-1.2,1.2,1.8]:
+					draw_line(pos+Vector2(cos(angle),sin(angle))*26*scale,pos+Vector2(cos(angle),sin(angle))*34*scale,Color("#6ee9a0"),3*scale)
 		"short_pea":
 			# 没有茎和躯干：低位豌豆头直接架在一圈贴地叶片上。
 			var leaf_dark := Color("#34753a")
@@ -863,6 +1009,27 @@ func draw_plant_shape(kind: String, pos: Vector2, scale: float) -> void:
 			draw_line(pos+Vector2(-14,-9)*scale,pos+Vector2(3,-34)*scale,Color("#376b36"),5*scale); draw_line(pos+Vector2(14,-7)*scale,pos+Vector2(3,-34)*scale,Color("#376b36"),5*scale)
 			draw_circle(pos+Vector2(-16,7)*scale,22*scale,Color("#e74d49")); draw_circle(pos+Vector2(17,9)*scale,22*scale,Color("#cf383d"))
 			draw_circle(pos+Vector2(-22,0)*scale,5*scale,Color("#ff9580")); draw_circle(pos+Vector2(-22,8)*scale,3*scale,Color("#391e26")); draw_circle(pos+Vector2(11,8)*scale,3*scale,Color("#391e26"))
+		"bbq_mushroom":
+			# 烤架纹路的火红菌盖与炭火菌柄，表现即将沿整列爆发的炸弹。
+			draw_colored_polygon(PackedVector2Array([
+				pos+Vector2(-15,5)*scale,pos+Vector2(-12,34)*scale,
+				pos+Vector2(12,34)*scale,pos+Vector2(16,4)*scale
+			]),Color("#6d4534"))
+			draw_circle(pos+Vector2(0,11)*scale,13*scale,Color("#8b5840"))
+			draw_colored_polygon(PackedVector2Array([
+				pos+Vector2(-38,4)*scale,pos+Vector2(-30,-20)*scale,
+				pos+Vector2(-15,-34)*scale,pos+Vector2(4,-39)*scale,
+				pos+Vector2(24,-31)*scale,pos+Vector2(38,-9)*scale,
+				pos+Vector2(36,5)*scale
+			]),Color("#dc6543"))
+			draw_line(pos+Vector2(-31,-2)*scale,pos+Vector2(32,-12)*scale,Color("#623a31"),4*scale)
+			draw_line(pos+Vector2(-24,-18)*scale,pos+Vector2(24,-25)*scale,Color("#623a31"),4*scale)
+			draw_line(pos+Vector2(-9,-31)*scale,pos+Vector2(-5,1)*scale,Color("#f0a04e"),3*scale)
+			draw_line(pos+Vector2(10,-34)*scale,pos+Vector2(14,-3)*scale,Color("#f0a04e"),3*scale)
+			draw_circle(pos+Vector2(-7,13)*scale,3*scale,Color("#2e2522"))
+			draw_circle(pos+Vector2(7,13)*scale,3*scale,Color("#2e2522"))
+			draw_circle(pos+Vector2(27,-30)*scale,5*scale,Color("#ffc34d"))
+			draw_circle(pos+Vector2(29,-34)*scale,2.5*scale,Color("#fff08a"))
 		"mine":
 			draw_potato_mine(pos, true, scale)
 		"yam_guard":
@@ -939,6 +1106,9 @@ func zombie_bar_position(z: Dictionary, pos: Vector2) -> Vector2:
 	return pos if z.has("draw_y") else pos+Vector2(0,ZOMBIE_BOARD_LIFT)
 
 func draw_zombie(z: Dictionary) -> void:
+	if z.kind=="giant":
+		WildlandArt.giant(self,z)
+		return
 	if z.kind=="kart":
 		draw_kart_zombie(z)
 		return
@@ -948,9 +1118,14 @@ func draw_zombie(z: Dictionary) -> void:
 	if z.kind=="camo":
 		draw_camo_zombie(z)
 		return
+	if z.kind=="glider":
+		draw_glider_zombie(z)
+		return
 	var pos := zombie_display_position(z)
 	var scale: float = z.get("draw_scale",1.0)
 	var head := ZombieArt.draw(self,z,pos,scale,art_parent_transform)
+	if z.kind=="basket" and int(z.get("throw_phase",0))<2:
+		draw_basketball(basket_ball_position(z,pos,scale),12*scale,float(z.anim)*0.15)
 	var skin := Color("#92a17b") if z.slow<=0 else Color("#71b8bd")
 	if z.kind == "flag":
 		draw_line(pos+Vector2(-19,-21)*scale,pos+Vector2(-34,-30)*scale,Color("#70513b"),11*scale)
@@ -993,6 +1168,20 @@ func draw_zombie(z: Dictionary) -> void:
 			draw_line(head+Vector2(vent_x,16)*scale,head+Vector2(vent_x-2.0,24)*scale,Color("#3f4b4f"),2*scale)
 		draw_circle(head+Vector2(-24,10)*scale,2.5*scale,Color("#c0c9ca"))
 		draw_circle(head+Vector2(24,10)*scale,2.5*scale,Color("#c0c9ca"))
+	elif z.kind=="copper" and not z.get("armor_lost",false):
+		# 厚重铜球完整包住头部，只留下狭窄观察孔；多层明暗和铆钉强化硬度感。
+		draw_circle(head+Vector2(0,-8)*scale,43*scale,Color("#4d2d22"))
+		draw_circle(head+Vector2(0,-8)*scale,38*scale,Color("#a75c32"))
+		draw_circle(head+Vector2(-7,-15)*scale,31*scale,Color("#bd7440"))
+		draw_arc(head+Vector2(-5,-12)*scale,30*scale,3.45,5.15,18,Color("#e2a063"),5*scale)
+		draw_arc(head+Vector2(3,-5)*scale,34*scale,-0.7,0.75,18,Color("#713b28"),5*scale)
+		draw_colored_polygon(PackedVector2Array([
+			head+Vector2(-30,-12)*scale,head+Vector2(29,-12)*scale,
+			head+Vector2(25,-2)*scale,head+Vector2(-27,-2)*scale
+		]),Color("#2d2824"))
+		draw_line(head+Vector2(-12,-7)*scale,head+Vector2(-3,-7)*scale,Color("#d4d49d"),2*scale)
+		for angle in [0.45,2.0,3.55,5.1]:
+			draw_circle(head+Vector2(cos(angle),sin(angle))*31*scale+Vector2(0,-8)*scale,3*scale,Color("#e0a069"))
 	elif z.kind=="runner":
 		draw_rect(Rect2(head+Vector2(-27,-24)*scale,Vector2(52,9)*scale),Color("#e95855"))
 		draw_colored_polygon(PackedVector2Array([head+Vector2(23,-22)*scale,head+Vector2(45,-33)*scale,head+Vector2(35,-17)*scale]),Color("#e95855"))
@@ -1017,6 +1206,66 @@ func draw_zombie(z: Dictionary) -> void:
 	if show_health_bars and not z.get("hide_bar", false):
 		draw_bar(zombie_bar_position(z,pos)+Vector2(-39,-112)*scale,68*scale,z.hp/z.max_hp,Color("#df6b54"))
 	if z.slow>0: draw_circle(pos+Vector2(-10,-55)*scale,32*scale,Color(0.4,0.9,1,0.13),false,3*scale)
+
+func draw_glider_zombie(z: Dictionary) -> void:
+	var ground_pos := zombie_display_position(z)
+	var scale: float = z.get("draw_scale",1.0)
+	if not z.get("airborne",false):
+		var head := ZombieArt.draw(self,z,ground_pos,scale,art_parent_transform)
+		# 落地后翼膜收拢成贴身的绿色滑翔服和背带，身体继续使用标准僵尸骨骼。
+		draw_colored_polygon(PackedVector2Array([
+			ground_pos+Vector2(-25,-50)*scale,ground_pos+Vector2(19,-54)*scale,
+			ground_pos+Vector2(28,-8)*scale,ground_pos+Vector2(13,17)*scale,
+			ground_pos+Vector2(-21,13)*scale,ground_pos+Vector2(-31,-10)*scale
+		]),Color("#315f58"))
+		draw_line(ground_pos+Vector2(-18,-45)*scale,ground_pos+Vector2(19,9)*scale,Color("#a5bc72"),4*scale)
+		draw_line(ground_pos+Vector2(16,-48)*scale,ground_pos+Vector2(-16,8)*scale,Color("#7f9f67"),4*scale)
+		draw_circle(ground_pos+Vector2(0,-17)*scale,5*scale,Color("#d7df8a"))
+		if z.get("rooted",false): draw_rooted_effect(ground_pos,scale)
+		if show_health_bars and not z.get("hide_bar",false):
+			draw_bar(zombie_bar_position(z,ground_pos)+Vector2(-39,-112)*scale,68*scale,z.hp/z.max_hp,Color("#df6b54"))
+		if z.slow>0: draw_circle(head,32*scale,Color(0.4,0.9,1,0.13),false,3*scale)
+		return
+	var pos := ground_pos+Vector2(0,-78)*scale
+	var flutter := sin(float(z.get("anim",0.0))*4.0)*3.0*scale
+	# 弧形翼伞与四根伞绳先画在角色后方。
+	var canopy := PackedVector2Array([
+		pos+Vector2(-82,-74+flutter)*scale,pos+Vector2(-58,-101+flutter)*scale,
+		pos+Vector2(0,-111+flutter)*scale,pos+Vector2(58,-101+flutter)*scale,
+		pos+Vector2(82,-74+flutter)*scale,pos+Vector2(49,-82+flutter)*scale,
+		pos+Vector2(0,-87+flutter)*scale,pos+Vector2(-49,-82+flutter)*scale
+	])
+	draw_colored_polygon(canopy,Color("#456f67"))
+	draw_polyline(PackedVector2Array([canopy[0],canopy[2],canopy[4]]),Color("#9bc0a8"),3*scale)
+	for anchor_x in [-55.0,-22.0,22.0,55.0]:
+		draw_line(pos+Vector2(anchor_x,-82+flutter)*scale,pos+Vector2(5,0)*scale,Color("#c5c8a5"),1.5*scale)
+	# 标准僵尸分层身体整体旋转为头朝左、四肢向后伸展的俯卧姿态。
+	var flight_parent := art_parent_transform*Transform2D(0.0,pos)*Transform2D(-PI/2.0,Vector2.ZERO)*Transform2D(0.0,-pos)
+	var flight_pose := z.duplicate()
+	flight_pose.walking = false
+	flight_pose.biting = false
+	ZombieArt.draw(self,flight_pose,pos,scale,flight_parent)
+	draw_set_transform_matrix(art_parent_transform)
+	# 不透明滑翔服覆盖原躯干，两侧翼膜展开；头、手和鞋仍来自标准素材。
+	draw_colored_polygon(PackedVector2Array([
+		pos+Vector2(-24,-18)*scale,pos+Vector2(13,-43)*scale,
+		pos+Vector2(45,-31)*scale,pos+Vector2(28,-5)*scale,
+		pos+Vector2(48,28)*scale,pos+Vector2(12,40)*scale,
+		pos+Vector2(-24,17)*scale
+	]),Color("#315f58"))
+	draw_colored_polygon(PackedVector2Array([
+		pos+Vector2(-12,-12)*scale,pos+Vector2(18,-47)*scale,
+		pos+Vector2(54,-52)*scale,pos+Vector2(34,-8)*scale
+	]),Color("#4c8877"))
+	draw_colored_polygon(PackedVector2Array([
+		pos+Vector2(-12,12)*scale,pos+Vector2(18,47)*scale,
+		pos+Vector2(54,52)*scale,pos+Vector2(34,8)*scale
+	]),Color("#3c7469"))
+	draw_line(pos+Vector2(-19,0)*scale,pos+Vector2(43,0)*scale,Color("#9fc06e"),3*scale)
+	draw_circle(pos+Vector2(5,0)*scale,4*scale,Color("#d6df8a"))
+	if show_health_bars and not z.get("hide_bar",false):
+		draw_bar(zombie_bar_position(z,ground_pos)+Vector2(-39,-112)*scale,68*scale,z.hp/z.max_hp,Color("#df6b54"))
+	if z.slow>0: draw_circle(pos,50*scale,Color(0.4,0.9,1,0.13),false,3*scale)
 
 func draw_camo_zombie(z: Dictionary) -> void:
 	var pos := zombie_display_position(z)
@@ -1087,12 +1336,42 @@ func draw_dropped_armor(armor: Dictionary) -> void:
 			pos+Vector2(21,18).rotated(angle),pos+Vector2(-21,18).rotated(angle)]),Color("#879397"))
 		draw_line(pos+Vector2(-28,-20).rotated(angle),pos+Vector2(28,-20).rotated(angle),Color("#c0c7c7"),6)
 		draw_line(pos+Vector2(-17,-6).rotated(angle),pos+Vector2(17,-6).rotated(angle),Color("#5d696c"),3)
+	elif armor.kind == "copper":
+		draw_circle(pos,30,Color("#4d2d22"))
+		draw_circle(pos-Vector2(3,3),25,Color("#a75c32"))
+		draw_arc(pos-Vector2(4,5),20,3.5,5.0,14,Color("#e2a063"),4)
+		for angle_offset in [0.3,1.9,3.5,5.1]:
+			draw_circle(pos+Vector2(cos(angle+angle_offset),sin(angle+angle_offset))*20,2.5,Color("#d88d58"))
 	else:
 		draw_arc(pos,27,PI+angle,TAU+angle,18,Color("#77858a"),17)
 		draw_line(pos+Vector2(-30,0).rotated(angle),pos+Vector2(30,0).rotated(angle),Color("#b7c1c2"),7)
 		draw_line(pos+Vector2(0,-26).rotated(angle),pos+Vector2(0,-4).rotated(angle),Color("#566267"),3)
 
+func basket_ball_position(z: Dictionary, pos: Vector2, size: float) -> Vector2:
+	var pose := ZombieArt.pose(z)
+	var unit := ZombieArt.UNIT*size
+	return pos+(pose.far_forearm*Vector2(82,240)-ZombieArt.ORIGIN)*unit+Vector2(-5,-4)*size
+
+func draw_basketball(pos: Vector2, radius: float, spin: float) -> void:
+	draw_circle(pos,radius+1.5,Color("#493025"))
+	draw_circle(pos,radius,Color("#e18a36"))
+	var axis := Vector2(cos(spin),sin(spin))*radius
+	draw_line(pos-axis,pos+axis,Color("#593829"),1.8)
+	draw_line(pos-axis.orthogonal(),pos+axis.orthogonal(),Color("#593829"),1.8)
+	# 球面弧形接缝始终位于球内，不能用偏移圆心的完整圆代替。
+	var seam := PackedVector2Array()
+	for i in range(33):
+		var angle := TAU*float(i)/32.0
+		seam.append(pos+Vector2(cos(angle)*radius*0.42,sin(angle)*radius).rotated(spin))
+	draw_polyline(seam,Color("#704126"),1.3)
+
 func draw_projectile(pr: Dictionary) -> void:
+	if pr.get("pepper",false):
+		WildlandArt.pepper(self,Vector2(pr.x,pr.y),0.35,true,float(pr.elapsed)*7.0)
+		return
+	if pr.get("basketball",false):
+		draw_basketball(Vector2(pr.x,pr.y),12,float(pr.elapsed)*8.0)
+		return
 	if pr.get("needle",false):
 		var pos := Vector2(pr.x,pr.y)
 		draw_colored_polygon(PackedVector2Array([
@@ -1107,8 +1386,10 @@ func draw_projectile(pr: Dictionary) -> void:
 		]),Color("#e6d49b"))
 		draw_line(pos+Vector2(-8,0),pos+Vector2(7,0),Color("#6e9f4e"),2)
 		return
-	var c := Color("#7de04e") if not pr.snow else Color("#8cebf2")
-	draw_circle(Vector2(pr.x,pr.y),8,c); draw_rect(Rect2(pr.x-14,pr.y-2,7,4),c.darkened(.2))
+	var c := Color("#65eca0") if pr.get("energy",false) else Color("#7de04e") if not pr.snow else Color("#8cebf2")
+	var radius := 11.0 if pr.get("energy",false) else 8.0
+	if pr.get("energy",false): draw_circle(Vector2(pr.x,pr.y),15,Color(0.35,1.0,0.62,0.18))
+	draw_circle(Vector2(pr.x,pr.y),radius,c); draw_rect(Rect2(pr.x-radius-6,pr.y-2,7,4),c.darkened(.2))
 
 func draw_sun(s: Dictionary) -> void:
 	var pos: Vector2=s.pos; var rad:=19.0+sin(s.pulse*5.0)*2.0
@@ -1130,16 +1411,34 @@ func draw_coin_icon(pos: Vector2, kind: String, scale := 1.0) -> void:
 	draw_line(pos+Vector2(3,-5)*scale,pos+Vector2(3,5)*scale,outer,2.0*scale)
 
 func draw_item_icon(kind: String, pos: Vector2, scale := 1.0) -> void:
+	if kind=="starting_sun":
+		draw_circle(pos,23*scale,Color("#ffd94f"))
+		for i in range(8):
+			var ray := Vector2.from_angle(i*TAU/8)
+			draw_line(pos+ray*28*scale,pos+ray*36*scale,Color("#ffe9a0"),5*scale)
+		draw_line(pos+Vector2(-10,0)*scale,pos+Vector2(10,0)*scale,Color("#fff5cd"),5*scale)
+		draw_line(pos+Vector2(0,-10)*scale,pos+Vector2(0,10)*scale,Color("#fff5cd"),5*scale)
+		return
 	if kind=="air_bomb":
 		draw_colored_polygon(PackedVector2Array([pos+Vector2(-20,-10)*scale,pos+Vector2(12,-16)*scale,pos+Vector2(22,0)*scale,pos+Vector2(12,16)*scale,pos+Vector2(-20,10)*scale]),Color("#d94e43"))
 		draw_rect(Rect2(pos+Vector2(-27,-7)*scale,Vector2(9,14)*scale),Color("#e8ca72"))
 		draw_line(pos+Vector2(14,-11)*scale,pos+Vector2(27,-24)*scale,Color("#f0df9b"),3*scale)
 		draw_circle(pos+Vector2(29,-27)*scale,4*scale,Color("#ffdc55"))
-	else:
+	elif kind=="sun_pack":
 		draw_colored_polygon(PackedVector2Array([pos+Vector2(-21,-17)*scale,pos+Vector2(20,-17)*scale,pos+Vector2(26,20)*scale,pos+Vector2(-26,20)*scale]),Color("#d59d4b"))
 		draw_line(pos+Vector2(-17,-14)*scale,pos+Vector2(17,-14)*scale,Color("#f0d187"),4*scale)
 		draw_circle(pos+Vector2(0,3)*scale,11*scale,Color("#ffe55f"))
 		draw_circle(pos+Vector2(0,3)*scale,6*scale,Color("#fff1a1"))
+	else:
+		# 金色铲刃与嫩叶徽记表示返还阳光的永久升级。
+		draw_line(pos+Vector2(-8,15)*scale,pos+Vector2(13,-13)*scale,Color("#d9a85b"),8*scale)
+		draw_line(pos+Vector2(10,-12)*scale,pos+Vector2(18,-22)*scale,Color("#f3d37c"),6*scale)
+		draw_colored_polygon(PackedVector2Array([
+			pos+Vector2(-20,13)*scale,pos+Vector2(-5,6)*scale,pos+Vector2(5,17)*scale,
+			pos+Vector2(-8,31)*scale,pos+Vector2(-22,25)*scale
+		]),Color("#e8c44f"))
+		draw_circle(pos+Vector2(21,13)*scale,13*scale,Color("#ffe45e"))
+		draw_colored_polygon(PackedVector2Array([pos+Vector2(18,13)*scale,pos+Vector2(27,4)*scale,pos+Vector2(25,17)*scale]),Color("#61a84d"))
 
 func draw_money_bag(pos: Vector2, scale := 1.0) -> void:
 	draw_colored_polygon(PackedVector2Array([pos+Vector2(-30,-25)*scale,pos+Vector2(28,-25)*scale,pos+Vector2(42,28)*scale,pos+Vector2(-42,28)*scale]),Color("#b67d42"))

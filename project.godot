@@ -11,11 +11,12 @@ config_version=5
 [application]
 
 config/name="pvz:wasteland"
-config/version="0.2"
+config/version="0.3"
 run/main_scene="res://main.tscn"
 config/use_custom_user_dir=true
 config/custom_user_dir_name="Pixel Garden Defense"
 config/features=PackedStringArray("4.7")
+config/icon="res://assets/icon.svg"
 
 [display]
 

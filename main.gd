@@ -3,6 +3,8 @@ extends "res://scripts/game_view.gd"
 const WavePlanner := preload("res://scripts/wave_planner.gd")
 const Persistence := preload("res://scripts/persistence.gd")
 const AudioSynth := preload("res://scripts/audio_synth.gd")
+const WildlandRules := preload("res://scripts/wildland_rules.gd")
+const PepperRules := preload("res://scripts/pepper_rules.gd")
 
 func _ready() -> void:
 	rng.randomize()
@@ -22,11 +24,13 @@ func _ready() -> void:
 		game_state = "almanac"
 		if "--zombies" in args:
 			almanac_tab = "zombies"
-			if "--charger" in args or "--camo" in args:
-				almanac_selected = ZOMBIE_INFO.keys().find("camo" if "--camo" in args else "charger")
+			if "--charger" in args or "--camo" in args or "--glider" in args or "--copper" in args:
+				var capture_kind := "copper" if "--copper" in args else "glider" if "--glider" in args else "camo" if "--camo" in args else "charger"
+				almanac_selected = ZOMBIE_INFO.keys().find(capture_kind)
 				almanac_row_offset = almanac_max_offset()
-		elif "--squash" in args or "--short-pea" in args:
-			almanac_selected = PLANT_DATA.keys().find("short_pea" if "--short-pea" in args else "squash")
+		elif "--squash" in args or "--short-pea" in args or "--energy-pea" in args or "--bbq-mushroom" in args:
+			var capture_plant := "bbq_mushroom" if "--bbq-mushroom" in args else "energy_pea" if "--energy-pea" in args else "short_pea" if "--short-pea" in args else "squash"
+			almanac_selected = PLANT_DATA.keys().find(capture_plant)
 			almanac_row_offset = almanac_max_offset()
 		capture_preview.call_deferred()
 	elif "--smoke-almanac" in args:
@@ -64,6 +68,21 @@ func _ready() -> void:
 		var blast_target: Dictionary = zombies[-1]
 		damage_zombie(blast_target,1800.0)
 		assert(blast_target.dead,"卡丁车必须把车体剩余伤害继续传递给小鬼")
+		reset_game(6)
+		sun_points = 999
+		place_plant("cherry",3,2)
+		var invincible_cherry: Dictionary = plants[-1]
+		var cherry_x := cell_center(3,2).x
+		spawn_zombie(2,"kart",cherry_x)
+		zombies[-1].x = cherry_x
+		spawn_zombie(2,"normal",cherry_x)
+		zombies[-1].x = cherry_x
+		update_zombies(0.25)
+		assert(not invincible_cherry.dead and invincible_cherry.hp==invincible_cherry.max_hp,
+			"樱桃炸弹引爆前不能被卡丁车碾压或被僵尸啃伤")
+		update_plants(1.0)
+		assert(invincible_cherry.dead and zombies[0].dead and zombies[1].dead,
+			"无敌的樱桃炸弹仍必须在自身引爆后消失并造成伤害")
 	elif "--smoke-cactus" in args:
 		equipped_plants.assign(LEVEL_DATA[6].plants.slice(0,8))
 		reset_game(6)
@@ -141,6 +160,28 @@ func _ready() -> void:
 		var sun_before := sun_points
 		activate_item("sun_pack")
 		assert(item_inventory.sun_pack==0 and sun_points==sun_before+500,"阳光礼包必须消耗一份并提供500阳光")
+		unlocked_level = 17
+		sun_shovel_level = 0
+		money = 25000
+		purchase_sun_shovel()
+		assert(sun_shovel_level==0 and money==25000,"阳光铲必须在完成荒地第十四关后才能购买")
+		unlocked_level = 18
+		purchase_sun_shovel()
+		assert(sun_shovel_level==1 and money==15000 and shovel_refund_for("pea")==25,
+			"一级阳光铲必须花费10000并返还植物价格的25%")
+		purchase_sun_shovel()
+		assert(sun_shovel_level==2 and money==3000 and shovel_refund_for("energy_pea")==162,
+			"二级阳光铲必须花费12000并返还植物价格的50%（向下取整）")
+		purchase_sun_shovel()
+		assert(sun_shovel_level==2 and money==3000,"阳光铲最多只能购买两次")
+		sun_points = 0
+		var shovel_test_plant := {"kind":"energy_pea","col":2,"row":2,"dead":false}
+		remove_plant_with_shovel(shovel_test_plant)
+		assert(shovel_test_plant.dead and sun_points==162,"满级阳光铲必须在铲除植物时实际返还50%阳光")
+		save_game()
+		sun_shovel_level = 0
+		load_save_game()
+		assert(sun_shovel_level==2,"阳光铲的永久升级等级必须写入并恢复存档")
 		spawn_zombie(2,"normal",cell_center(4,2).x)
 		zombies[-1].x = cell_center(4,2).x
 		use_air_bomb(4,2)
@@ -297,6 +338,169 @@ func _ready() -> void:
 		big_wave_warning = false
 		update_spawning(0.0)
 		assert(big_wave_warning and is_equal_approx(spawn_clock,3.75),"固定卡组关卡的大波警告时间必须为普通关卡的1.5倍")
+	elif "--smoke-locked-level" in args:
+		saved_loadouts[14] = ["sunflower","short_pea","cherry"]
+		prepare_level(14)
+		assert(available_plants.has("short_pea") and is_plant_locked("short_pea"),
+			"荒地第十一关必须显示被锁定的矮茎豌豆卡片")
+		assert(equipped_plants==["sunflower","cherry"],"保存阵容中的矮茎豌豆必须在本关被自动剔除")
+		prepare_camera_x = 520.0
+		var short_pea_index := available_plants.find("short_pea")
+		handle_prepare_click(prepare_card_rect(short_pea_index).get_center())
+		assert(not equipped_plants.has("short_pea") and message=="该植物在本关被锁定",
+			"点击锁定卡片不能把矮茎豌豆加入卡槽")
+		reset_game(14)
+		assert(wave_plan.size()==30 and level_zombie_types()==["normal","cone","bucket","runner","swing","camo"],
+			"荒地第十一关必须有三个大波组和指定僵尸阵容")
+		var planned_kinds: Array[String] = []
+		for planned_wave in wave_plan:
+			for planned_kind in planned_wave:
+				assert(planned_kind in ["normal","cone","bucket","runner","swing","camo"],"荒地第十一关生成了未指定的僵尸")
+				if planned_kind not in planned_kinds: planned_kinds.append(planned_kind)
+		for required_kind in ["normal","cone","bucket","runner","swing","camo"]:
+			assert(required_kind in planned_kinds,"荒地第十一关的波次不能漏掉%s" % required_kind)
+	elif "--smoke-glider" in args:
+		assert(LEVEL_DATA[14].reward=="energy_pea" and PLANT_DATA.energy_pea.cost==325 and PLANT_DATA.energy_pea.cool==30.0 and PLANT_DATA.energy_pea.damage==80.0,
+			"荒地第十一关必须奖励325阳光、冷却30秒、单发80伤害的聚能豆")
+		assert(energy_pea_shot_count(0.0)==2 and energy_pea_shot_count(0.0999)==2 and energy_pea_shot_count(0.10)==1,
+			"聚能豆双发概率边界必须严格为10%")
+		equipped_plants.assign(LEVEL_DATA[15].plants.slice(0,8))
+		reset_game(15)
+		assert(wave_plan.size()==20 and level_zombie_types()==["normal","bucket","runner","glider"],
+			"荒地第十二关必须有两个大波组和指定僵尸阵容")
+		var planned_kinds: Array[String] = []
+		for planned_wave in wave_plan:
+			for planned_kind in planned_wave:
+				assert(planned_kind in ["normal","bucket","runner","glider"],"荒地第十二关生成了未指定的僵尸")
+				if planned_kind not in planned_kinds: planned_kinds.append(planned_kind)
+		for required_kind in ["normal","bucket","runner","glider"]:
+			assert(required_kind in planned_kinds,"荒地第十二关的波次不能漏掉%s" % required_kind)
+		sun_points = 999
+		spawn_zombie(2,"glider",900.0)
+		var glider_test: Dictionary = zombies[-1]
+		glider_test.x = cell_center(4,2).x
+		assert(glider_test.hp==360.0 and glider_test.speed==80.0 and ZOMBIE_POINTS.glider==3 and zombie_is_airborne(glider_test),
+			"滑翔伞僵尸必须以360生命、80滑翔速度和3点分值入场")
+		assert(has_zombie_ahead(2,500.0,false) and not has_zombie_ahead(2,500.0,true),
+			"滑翔目标必须能被普通弹道锁定，但不能被矮茎豌豆锁定")
+		assert(find_squash_target({"col":4,"row":2})==null and find_slime_target({"col":4,"row":2})==null,
+			"滑翔途中不能被倭瓜或粘液多肉选中")
+		assert(not mine_has_target({"col":4,"row":2}) and plant_at_zombie(glider_test)==null,
+			"滑翔途中必须越过土豆雷和所有地面阻挡物")
+		yam_minions.append({"owner_col":4,"owner_row":1,"col":4,"row":2,"hp":500.0,"max_hp":500.0,"dead":false,"anim":0.0,"attack_flash":0.0})
+		var air_hp_before: float = glider_test.hp
+		update_yam_minions(0.5)
+		assert(glider_test.hp==air_hp_before,"小红薯不能攻击滑翔中的僵尸")
+		place_plant("energy_pea",2,2)
+		plants[-1].timer = 0.0
+		update_plants(0.01)
+		assert(not projectiles.is_empty() and projectiles[-1].damage==80.0 and projectiles[-1].get("energy",false),
+			"聚能豆必须发射80伤害的聚能豌豆")
+		projectiles[-1].x = glider_test.x
+		projectiles[-1].speed = 0.0
+		update_projectiles(0.0)
+		assert(glider_test.hp==280.0,"普通高度的聚能豌豆必须能够命中滑翔目标")
+		glider_test.x = cell_center(4,2).x+100.0
+		update_zombies(2.1)
+		assert(not zombie_is_airborne(glider_test) and glider_test.x==cell_center(4,2).x and glider_test.speed==15.0,
+			"滑翔伞僵尸必须在第五格落地并恢复普通步行速度")
+		reset_game(16)
+		assert(wave_plan.size()==30 and level_zombie_types()==["normal","cone","bucket","charger","glider"],
+			"荒地第十三关必须有三个大波组和指定僵尸阵容")
+		planned_kinds.clear()
+		for planned_wave in wave_plan:
+			for planned_kind in planned_wave:
+				assert(planned_kind in ["normal","cone","bucket","charger","glider"],"荒地第十三关生成了未指定的僵尸")
+				if planned_kind not in planned_kinds: planned_kinds.append(planned_kind)
+		for required_kind in ["normal","cone","bucket","charger","glider"]:
+			assert(required_kind in planned_kinds,"荒地第十三关的波次不能漏掉%s" % required_kind)
+		reset_game(17)
+		assert(wave_plan.size()==20 and level_zombie_types()==["normal","cone","bucket","charger","copper","runner"],
+			"荒地第十四关必须有两个大波组和指定僵尸阵容")
+		planned_kinds.clear()
+		for planned_wave in wave_plan:
+			for planned_kind in planned_wave:
+				assert(planned_kind in ["normal","cone","bucket","charger","copper","runner"],"荒地第十四关生成了未指定的僵尸")
+				if planned_kind not in planned_kinds: planned_kinds.append(planned_kind)
+		for required_kind in ["normal","cone","bucket","charger","copper","runner"]:
+			assert(required_kind in planned_kinds,"荒地第十四关的波次不能漏掉%s" % required_kind)
+		var aggressive_second_group_score := 0
+		for wave_index in range(10,20):
+			aggressive_second_group_score += wave_score(wave_plan[wave_index])
+		assert(aggressive_second_group_score==88,
+			"荒地第十四关起第二个大波组的计划分数必须提高到88点")
+		spawn_zombie(2,"copper",900.0)
+		var copper_test: Dictionary = zombies[-1]
+		assert(copper_test.hp==2290.0 and copper_test.speed==12.0 and ZOMBIE_POINTS.copper==4,
+			"铜头僵尸必须具有2100防具、190本体生命、12速度和4点分值")
+		damage_zombie(copper_test,2100.0)
+		assert(copper_test.hp==190.0 and copper_test.armor_lost,"铜球承受2100伤害后必须脱落并留下190本体生命")
+		damage_zombie(copper_test,190.0)
+		assert(copper_test.dead,"铜球脱落后的本体生命耗尽时必须死亡")
+		reset_game(18)
+		assert(wave_plan.size()==30 and level_zombie_types()==["normal","cone","bucket","copper","camo","kart"],
+			"荒地第十五关必须有三个大波组和指定僵尸阵容")
+		planned_kinds.clear()
+		for planned_wave in wave_plan:
+			for planned_kind in planned_wave:
+				assert(planned_kind in ["normal","cone","bucket","copper","camo","kart"],"荒地第十五关生成了未指定的僵尸")
+				if planned_kind not in planned_kinds: planned_kinds.append(planned_kind)
+		for required_kind in ["normal","cone","bucket","copper","camo","kart"]:
+			assert(required_kind in planned_kinds,"荒地第十五关的波次不能漏掉%s" % required_kind)
+		var second_group_score := 0
+		var third_group_score := 0
+		for wave_index in range(10,20): second_group_score += wave_score(wave_plan[wave_index])
+		for wave_index in range(20,30): third_group_score += wave_score(wave_plan[wave_index])
+		assert(second_group_score==88 and third_group_score==157,
+			"荒地第十五关必须应用激进的第二、第三大波组预算")
+		reset_game(19)
+		assert(wave_plan.size()==30 and level_zombie_types()==["normal","bucket","kart","runner","camo","glider","copper"],
+			"荒地第十六关必须有三个大波组和指定僵尸阵容")
+		planned_kinds.clear()
+		for planned_wave in wave_plan:
+			for planned_kind in planned_wave:
+				assert(planned_kind in ["normal","bucket","kart","runner","camo","glider","copper"],"荒地第十六关生成了未指定的僵尸")
+				if planned_kind not in planned_kinds: planned_kinds.append(planned_kind)
+		for required_kind in ["normal","bucket","kart","runner","camo","glider","copper"]:
+			assert(required_kind in planned_kinds,"荒地第十六关的波次不能漏掉%s" % required_kind)
+		second_group_score = 0
+		third_group_score = 0
+		for wave_index in range(10,20): second_group_score += wave_score(wave_plan[wave_index])
+		for wave_index in range(20,30): third_group_score += wave_score(wave_plan[wave_index])
+		assert(second_group_score==88 and third_group_score==157,
+			"荒地第十六关必须继续应用激进的后续大波组预算")
+		assert(LEVEL_DATA[19].reward=="bbq_mushroom" and PLANT_DATA.bbq_mushroom.cost==150 and PLANT_DATA.bbq_mushroom.damage==1800.0,
+			"荒地第十六关必须奖励150阳光、1800伤害的烧烤蘑菇")
+		reset_game(20)
+		assert(wave_plan.size()==30 and level_zombie_types()==["normal","swing","runner","camo","glider","kart","charger"],
+			"荒地第十七关必须有三个大波组和指定僵尸阵容")
+		planned_kinds.clear()
+		for planned_wave in wave_plan:
+			for planned_kind in planned_wave:
+				assert(planned_kind in ["normal","swing","runner","camo","glider","kart","charger"],"荒地第十七关生成了未指定的僵尸")
+				if planned_kind not in planned_kinds: planned_kinds.append(planned_kind)
+		for required_kind in ["normal","swing","runner","camo","glider","kart","charger"]:
+			assert(required_kind in planned_kinds,"荒地第十七关的波次不能漏掉%s" % required_kind)
+		second_group_score = 0
+		third_group_score = 0
+		for wave_index in range(10,20): second_group_score += wave_score(wave_plan[wave_index])
+		for wave_index in range(20,30): third_group_score += wave_score(wave_plan[wave_index])
+		assert(second_group_score==88 and third_group_score==157,"荒地第十七关必须继续使用激进波次预算")
+		sun_points = 999
+		place_plant("bbq_mushroom",4,2)
+		var bbq_test: Dictionary = plants[-1]
+		var column_x := cell_center(4,2).x
+		for row in ROWS:
+			spawn_zombie(row,"glider" if row==4 else "kart" if row==2 else "normal",column_x)
+			zombies[-1].x = column_x
+		spawn_zombie(2,"normal",column_x+CELL_W/2.0+2.0)
+		zombies[-1].x = column_x+CELL_W/2.0+2.0
+		assert(plant_at_zombie(zombies[2])==null,"烧烤蘑菇引爆前不能被卡丁车碾压")
+		update_plants(1.0)
+		assert(bbq_test.dead,"烧烤蘑菇引爆后必须消失")
+		for target_index in ROWS:
+			assert(zombies[target_index].dead,"烧烤蘑菇必须命中整列五行内的目标")
+		assert(not zombies[-1].dead and zombies[-1].hp==190.0,"烧烤蘑菇不能伤害相邻列外的僵尸")
 	elif "--smoke-camo" in args:
 		assert(LEVEL_DATA[11].reward=="short_pea" and PLANT_DATA.short_pea.cost==125,
 			"荒地第八关必须奖励125阳光的矮茎豌豆")
@@ -356,11 +560,13 @@ func _ready() -> void:
 		zombies[-1].x = cell_center(4,2).x+20.0
 		update_plants(0.01)
 		assert(zombies[-1].rooted and zombies[-1].hp==340.0,"粘液多肉必须能够固定并攻击军迷僵尸")
-	elif "--smoke-shop" in args:
-		unlocked_level = maxi(unlocked_level,4)
-		money = 1800
+	elif "--smoke-shop" in args or "--capture-shop" in args:
+		unlocked_level = maxi(unlocked_level,18 if "--capture-shop" in args else 4)
+		money = 25000 if "--capture-shop" in args else 1800
 		item_inventory = {"air_bomb":2,"sun_pack":1}
+		if "--capture-shop" in args: sun_shovel_level = 0
 		game_state = "shop"
+		if "--capture-shop" in args: capture_preview.call_deferred()
 	elif "--capture-preview" in args or "--capture-zombie-art" in args or "--capture-pause" in args or "--capture-more" in args or "--capture-keys" in args or "--smoke-test" in args:
 		reset_game()
 		sun_points = 999
@@ -413,7 +619,9 @@ func reset_game(level := current_level) -> void:
 	game_state = "play"
 	paused = false
 	game_time = 0.0
-	sun_points = 150
+	sand_clock = 90.0
+	sand_buff = 0.0
+	sun_points = 150+starting_sun_level*100
 	selected = ""
 	plants.clear()
 	zombies.clear()
@@ -421,6 +629,7 @@ func reset_game(level := current_level) -> void:
 	suns.clear()
 	coins.clear()
 	particles.clear()
+	pepper_fires.clear()
 	yam_minions.clear()
 	detached_arms.clear()
 	dropped_armor.clear()
@@ -461,7 +670,7 @@ func prepare_level(level: int) -> void:
 		equipped_plants.assign(available_plants)
 	elif saved_loadouts.has(current_level):
 		for kind in saved_loadouts[current_level]:
-			if kind in available_plants and equipped_plants.size() < 8:
+			if kind in available_plants and not is_plant_locked(kind) and equipped_plants.size() < 8:
 				equipped_plants.append(kind)
 	plants.clear()
 	zombies.clear()
@@ -469,6 +678,7 @@ func prepare_level(level: int) -> void:
 	suns.clear()
 	coins.clear()
 	particles.clear()
+	pepper_fires.clear()
 	yam_minions.clear()
 	detached_arms.clear()
 	mowers.clear()
@@ -478,6 +688,12 @@ func prepare_level(level: int) -> void:
 	queue_redraw()
 
 func level_zombie_types() -> Array[String]:
+	if current_level==21: return ["normal","cone","swing","basket"]
+	if current_level==24: return ["normal","cone","giant"]
+	if current_level==25: return ["normal","cone","copper","camo","glider"]
+	if current_level==26: return ["normal","bucket","kart","charger","runner","giant"]
+	if current_level==22: return ["normal","cone","bucket","basket","kart","camo"]
+	if current_level==23: return ["normal","bucket","charger","glider","copper","basket"]
 	# 旗帜僵尸只用于实际大波提示，不加入开战前的阵容展示。
 	var result: Array[String] = ["normal", "cone"]
 	if current_level == 4:
@@ -498,11 +714,32 @@ func level_zombie_types() -> Array[String]:
 		return ["normal","cone","runner","camo"]
 	if current_level == 13:
 		return ["normal","cone","bucket","kart","charger","camo"]
+	if current_level == 14:
+		return ["normal","cone","bucket","runner","swing","camo"]
+	if current_level == 15:
+		return ["normal","bucket","runner","glider"]
+	if current_level == 16:
+		return ["normal","cone","bucket","charger","glider"]
+	if current_level == 17:
+		return ["normal","cone","bucket","charger","copper","runner"]
+	if current_level == 18:
+		return ["normal","cone","bucket","copper","camo","kart"]
+	if current_level == 19:
+		return ["normal","bucket","kart","runner","camo","glider","copper"]
+	if current_level == 20:
+		return ["normal","swing","runner","camo","glider","kart","charger"]
 	if current_level >= 2: result.insert(2, "bucket")
 	if current_level >= 3: result.append("runner")
 	return result
 
 func choose_preview_zombie() -> String:
+	if current_level==26: return WavePlanner.choose_zombie_type(26,10,30,7,rng)
+	if current_level==25: return WavePlanner.choose_zombie_type(25,9,30,4,rng)
+	if current_level==24: return "giant" if rng.randf()<0.25 else "cone" if rng.randf()<0.5 else "normal"
+	if current_level in [22,23]:
+		return WavePlanner.choose_zombie_type(current_level,9,int(LEVEL_DATA[current_level].waves),4,rng)
+	if current_level==21:
+		return ["normal","cone","swing","basket"][rng.randi_range(0,3)]
 	var value := rng.randf()
 	if current_level == 1:
 		return "cone" if value < 0.28 else "normal"
@@ -545,6 +782,48 @@ func choose_preview_zombie() -> String:
 		if value<0.38: return "camo"
 		if value<0.52: return "bucket"
 		return "cone" if value<0.76 else "normal"
+	if current_level == 14:
+		if value<0.16: return "camo"
+		if value<0.31: return "runner"
+		if value<0.48: return "swing"
+		if value<0.61: return "bucket"
+		return "cone" if value<0.80 else "normal"
+	if current_level == 15:
+		if value<0.20: return "glider"
+		if value<0.40: return "runner"
+		if value<0.62: return "bucket"
+		return "normal"
+	if current_level == 16:
+		if value<0.17: return "charger"
+		if value<0.35: return "glider"
+		if value<0.55: return "bucket"
+		return "cone" if value<0.78 else "normal"
+	if current_level == 17:
+		if value<0.10: return "copper"
+		if value<0.24: return "charger"
+		if value<0.39: return "runner"
+		if value<0.57: return "bucket"
+		return "cone" if value<0.80 else "normal"
+	if current_level == 18:
+		if value<0.11: return "copper"
+		if value<0.26: return "kart"
+		if value<0.42: return "camo"
+		if value<0.59: return "bucket"
+		return "cone" if value<0.81 else "normal"
+	if current_level == 19:
+		if value<0.12: return "copper"
+		if value<0.25: return "kart"
+		if value<0.39: return "glider"
+		if value<0.54: return "camo"
+		if value<0.70: return "runner"
+		return "bucket" if value<0.84 else "normal"
+	if current_level == 20:
+		if value<0.12: return "charger"
+		if value<0.25: return "kart"
+		if value<0.38: return "glider"
+		if value<0.51: return "camo"
+		if value<0.64: return "runner"
+		return "swing" if value<0.79 else "normal"
 	if value < 0.12: return "bucket"
 	if value < 0.28: return "runner"
 	return "cone" if value < 0.52 else "normal"
@@ -578,7 +857,7 @@ func build_zombie_preview() -> void:
 			"kind":display_kinds[i], "x":preview_pos.x, "draw_y":preview_pos.y,
 			"draw_scale":rng.randf_range(0.84,1.06),
 			"row":0, "anim":rng.randf_range(0.0,TAU), "idle_rate":rng.randf_range(0.86,1.12), "slow":0.0, "walking":false,
-			"hp":1.0, "max_hp":1.0, "hide_bar":true
+			"hp":1.0, "max_hp":1.0, "hide_bar":true,"airborne":display_kinds[i]=="glider"
 		})
 
 func update_preview_idle(delta: float) -> void:
@@ -612,8 +891,10 @@ func _process(delta: float) -> void:
 	for key in cooldowns:
 		cooldowns[key] = maxf(0.0, cooldowns[key] - scaled_delta)
 	update_spawning(scaled_delta)
+	WildlandRules.update_wind(self,scaled_delta)
 	update_plants(scaled_delta)
 	update_yam_minions(scaled_delta)
+	PepperRules.update_effects(self,scaled_delta)
 	update_projectiles(scaled_delta)
 	update_zombies(scaled_delta)
 	update_suns(scaled_delta)
@@ -741,16 +1022,20 @@ func zombie_row_score(kind: String, row: int, wave_index: int) -> float:
 
 func spawn_zombie(row: int, kind: String, at_x := 1260.0) -> void:
 	var stats: Dictionary = {
+		"giant":{"hp":3000.0,"speed":15.0},
+		"basket":{"hp":360.0,"speed":25.0},
 		"normal":{"hp":190.0,"speed":15.0}, "cone":{"hp":560.0,"speed":15.0},
 		"bucket":{"hp":1290.0,"speed":15.0}, "runner":{"hp":160.0,"speed":35.0},
 		"flag":{"hp":190.0,"speed":15.0}, "kart":{"hp":500.0,"speed":20.0},
 		"imp":{"hp":190.0,"speed":25.0}, "swing":{"hp":300.0,"speed":17.0},
-		"charger":{"hp":1690.0,"speed":25.0}, "camo":{"hp":360.0,"speed":10.0}
+		"charger":{"hp":1690.0,"speed":25.0}, "camo":{"hp":360.0,"speed":10.0},
+		"glider":{"hp":360.0,"speed":80.0}, "copper":{"hp":2290.0,"speed":12.0}
 	}[kind]
 	zombies.append({"id":next_zombie_id,"row":row,"draw_row":float(row),"x":at_x + rng.randf_range(0.0, 70.0),"hp":stats.hp,"max_hp":stats.hp,
 		"speed":stats.speed,"kind":kind,"attack":0.0,"slow":0.0,"dead":false,"anim":rng.randf_range(0.0, 5.0),
 		"biting":false,"walking":true,"rooted":false,"swing_clock":rng.randf_range(4.5,7.0),
-		"arm_lost":false,"armor_lost":false})
+		"arm_lost":false,"armor_lost":false,"airborne":kind=="glider",
+		"landing_x":cell_center(4,row).x,"ground_speed":15.0})
 	next_zombie_id += 1
 
 func update_plants(delta: float) -> void:
@@ -758,20 +1043,28 @@ func update_plants(delta: float) -> void:
 		z.rooted = false
 	for p in plants:
 		p.timer -= delta
+		if p.dead: continue
 		p.anim += delta
 		match p.kind:
+			"sky_pepper":
+				PepperRules.attack(self,p)
+			"wind_grass":
+				p.wind_attack = maxf(0.0,float(p.get("wind_attack",0.0))-delta)
+				WildlandRules.attack_grass(self,p)
 			"sunflower":
 				if p.timer <= 0.0:
 					spawn_sun(cell_center(p.col, p.row) + Vector2(0, -25), false)
 					p.timer = SUNFLOWER_INTERVAL
-			"pea", "snow", "cactus", "short_pea":
+			"pea", "snow", "cactus", "short_pea", "energy_pea":
 				var hits_prone: bool = bool(PLANT_DATA[p.kind].get("hits_prone",false))
 				if p.timer <= 0.0 and has_zombie_ahead(p.row, cell_center(p.col, p.row).x,hits_prone):
-					projectiles.append({"row":p.row,"x":cell_center(p.col,p.row).x + 23.0,
-						"y":cell_center(p.col,p.row).y + (22.0 if hits_prone else -9.0),"speed":235.0,"damage":PLANT_DATA[p.kind].damage,
-						"snow":p.kind == "snow","piercing":p.kind=="cactus","hit_ids":[],
-						"max_hits":PLANT_DATA.cactus.max_targets if p.kind=="cactus" else 1,
-						"hits_prone":hits_prone,"dead":false})
+					var shot_count := energy_pea_shot_count(rng.randf()) if p.kind=="energy_pea" else 1
+					for shot_index in shot_count:
+						projectiles.append({"row":p.row,"x":cell_center(p.col,p.row).x + 23.0-shot_index*11.0,
+							"y":cell_center(p.col,p.row).y + (22.0 if hits_prone else -9.0)+(shot_index*2.0),"speed":235.0,"damage":PLANT_DATA[p.kind].damage,
+							"snow":p.kind == "snow","energy":p.kind=="energy_pea","piercing":p.kind=="cactus","hit_ids":[],
+							"max_hits":PLANT_DATA.cactus.max_targets if p.kind=="cactus" else 1,
+							"hits_prone":hits_prone,"dead":false})
 					p.timer = PLANT_DATA[p.kind].interval
 			"needle":
 				if p.timer <= 0.0:
@@ -797,6 +1090,9 @@ func update_plants(delta: float) -> void:
 			"cherry":
 				if p.timer <= 0.0 and not p.dead:
 					explode_cherry(p)
+			"bbq_mushroom":
+				if p.timer <= 0.0 and not p.dead:
+					explode_bbq_mushroom(p)
 			"mine":
 				if not p.armed and p.timer <= 0.0:
 					p.armed = true
@@ -822,7 +1118,7 @@ func find_squash_target(p: Dictionary):
 	var right_edge := center_x+CELL_W
 	var result = null
 	for z in zombies:
-		if z.dead or z.row!=p.row or z.x<left_edge or z.x>right_edge:
+		if z.dead or zombie_is_airborne(z) or z.row!=p.row or z.x<left_edge or z.x>right_edge:
 			continue
 		if result==null or absf(z.x-center_x)<absf(result.x-center_x):
 			result = z
@@ -852,7 +1148,7 @@ func update_squash(p: Dictionary, delta: float) -> void:
 		p.squash_clock = 0.22
 		var landing_x := float(p.squash_target_x)
 		for z in zombies:
-			if not z.dead and z.row==p.row and absf(z.x-landing_x)<=58.0:
+			if not z.dead and not zombie_is_airborne(z) and z.row==p.row and absf(z.x-landing_x)<=58.0:
 				damage_zombie(z,PLANT_DATA.squash.damage)
 		burst(Vector2(landing_x,cell_center(p.col,p.row).y+25.0),Color("#b5c76b"),18)
 		shake = 0.8
@@ -888,7 +1184,7 @@ func update_yam_minions(delta: float) -> void:
 		var target_distance := 62.0
 		var center_x := cell_center(minion.col,minion.row).x
 		for z in zombies:
-			if not z.dead and z.row == minion.row:
+			if not z.dead and not zombie_is_airborne(z) and z.row == minion.row:
 				var distance := absf(z.x - center_x)
 				if distance < target_distance:
 					target = z
@@ -901,9 +1197,23 @@ func update_yam_minions(delta: float) -> void:
 
 func has_zombie_ahead(row: int, x: float, hits_prone := false) -> bool:
 	for z in zombies:
-		if not z.dead and z.row == row and z.x > x and (z.kind!="camo" or hits_prone):
+		if not z.dead and z.row == row and z.x > x and projectile_can_hit_zombie(z,hits_prone):
 			return true
 	return false
+
+func energy_pea_shot_count(roll: float) -> int:
+	return 2 if roll<0.10 else 1
+
+func zombie_is_airborne(z: Dictionary) -> bool:
+	return bool(z.get("airborne",false))
+
+func projectile_can_hit_zombie(z: Dictionary, hits_prone: bool) -> bool:
+	if z.kind=="camo" and not hits_prone:
+		return false
+	# 矮茎豌豆的低弹道能打匍匐目标，但会从滑翔单位下方穿过。
+	if zombie_is_airborne(z) and hits_prone:
+		return false
+	return true
 
 func get_zombie_by_id(id: int):
 	if id < 0:
@@ -914,7 +1224,7 @@ func get_zombie_by_id(id: int):
 	return null
 
 func slime_target_valid(p: Dictionary, target) -> bool:
-	if target==null or target.dead or target.kind=="kart" or target.row!=p.row or target.get("rooted",false):
+	if target==null or target.dead or zombie_is_airborne(target) or target.kind=="kart" or target.row!=p.row or target.get("rooted",false):
 		return false
 	var radius: int = PLANT_DATA.slime.column_radius
 	var left_edge := BOARD_X+float(p.col-radius)*CELL_W
@@ -927,7 +1237,7 @@ func find_slime_target(p: Dictionary):
 	var left_edge := BOARD_X+float(p.col-radius)*CELL_W
 	var right_edge := BOARD_X+float(p.col+radius+1)*CELL_W
 	for z in zombies:
-		if z.dead or z.kind=="kart" or z.row!=p.row or z.get("rooted",false) or z.x<left_edge or z.x>=right_edge:
+		if z.dead or zombie_is_airborne(z) or z.kind=="kart" or z.row!=p.row or z.get("rooted",false) or z.x<left_edge or z.x>=right_edge:
 			continue
 		if result==null or z.x<result.x:
 			result = z
@@ -962,17 +1272,33 @@ func explode_cherry(p: Dictionary) -> void:
 	flash = 0.7
 	play_sfx(105.0, 0.36, 0.42, "noise")
 
+func explode_bbq_mushroom(p: Dictionary) -> void:
+	var center_x := cell_center(p.col,p.row).x
+	for z in zombies:
+		if not z.dead and absf(z.x-center_x)<CELL_W/2.0:
+			damage_zombie(z,PLANT_DATA.bbq_mushroom.damage)
+	for row in ROWS:
+		var blast_center := Vector2(center_x,cell_center(p.col,row).y)
+		for i in 12:
+			var angle := rng.randf_range(0.0,TAU)
+			particles.append({"pos":blast_center,"vel":Vector2(cos(angle),sin(angle))*rng.randf_range(55.0,190.0),
+				"life":rng.randf_range(0.35,0.8),"max":0.8,"color":Color("#f08a3f"),"size":rng.randf_range(5.0,13.0)})
+	p.dead = true
+	shake = 1.0
+	flash = 0.75
+	play_sfx(105.0,0.36,0.42,"noise")
+
 func mine_has_target(p: Dictionary) -> bool:
 	var center_x := cell_center(p.col, p.row).x
 	for z in zombies:
-		if not z.dead and z.row == p.row and absf(z.x - center_x) < 48.0:
+		if not z.dead and not zombie_is_airborne(z) and z.row == p.row and absf(z.x - center_x) < 48.0:
 			return true
 	return false
 
 func explode_mine(p: Dictionary) -> void:
 	var center := cell_center(p.col, p.row)
 	for z in zombies:
-		if not z.dead and z.row == p.row and absf(z.x - center.x) < 82.0:
+		if not z.dead and not zombie_is_airborne(z) and z.row == p.row and absf(z.x - center.x) < 82.0:
 			damage_zombie(z,PLANT_DATA.mine.damage)
 	for i in 28:
 		var a := rng.randf_range(0, TAU)
@@ -985,6 +1311,25 @@ func explode_mine(p: Dictionary) -> void:
 
 func update_projectiles(delta: float) -> void:
 	for pr in projectiles:
+		if pr.dead: continue
+		if pr.get("pepper",false):
+			PepperRules.update_projectile(self,pr,delta)
+			continue
+		if pr.get("basketball",false):
+			pr.elapsed += delta
+			var t := clampf(pr.elapsed/pr.duration,0.0,1.0)
+			var point: Vector2 = pr.start.lerp(pr.finish,t)+Vector2(0,-4.0*110.0*t*(1.0-t))
+			pr.x = point.x
+			pr.y = point.y
+			if t>=1.0:
+				pr.dead = true
+				var target = get_pumpkin(pr.col,pr.row)
+				if target==null: target = get_plant(pr.col,pr.row)
+				if target!=null and target.kind not in ["cherry","bbq_mushroom"] and not (target.kind=="squash" and target.squash_phase>0):
+					target.hp -= 300.0
+					if target.hp<=0: target.dead = true
+				burst(point,Color("#df8844"),8)
+			continue
 		if pr.get("needle",false):
 			var target = pr.get("target")
 			if target == null or target.dead:
@@ -1005,7 +1350,7 @@ func update_projectiles(delta: float) -> void:
 		if pr.x > W + 20: pr.dead = true
 		for z in zombies:
 			var already_hit: bool = bool(pr.get("piercing",false)) and int(z.get("id",-1)) in pr.hit_ids
-			if not pr.dead and not z.dead and not already_hit and z.row == pr.row and (z.kind!="camo" or pr.get("hits_prone",false)) and absf(z.x - pr.x) < 25.0:
+			if not pr.dead and not z.dead and not already_hit and z.row == pr.row and projectile_can_hit_zombie(z,bool(pr.get("hits_prone",false))) and absf(z.x - pr.x) < 25.0:
 				damage_zombie(z,pr.damage)
 				if pr.snow and not z.dead: z.slow = 3.0
 				if pr.get("piercing",false):
@@ -1014,16 +1359,73 @@ func update_projectiles(delta: float) -> void:
 						pr.dead = true
 				else:
 					pr.dead = true
-				burst(Vector2(pr.x, pr.y), Color("#8ce8f0") if pr.snow else Color("#9bea55"), 5)
+				burst(Vector2(pr.x, pr.y), Color("#8ce8f0") if pr.snow else Color("#65f0a0") if pr.get("energy",false) else Color("#9bea55"), 7 if pr.get("energy",false) else 5)
 				play_sfx(390.0 if pr.snow else 310.0, 0.045, 0.08, "square")
 
+func update_basket_attack(z: Dictionary, delta: float, rooted: bool) -> bool:
+	var phase := int(z.get("throw_phase",0))
+	if phase==3: return false
+	if rooted:
+		# 定身中止尚未出手的蓄力，恢复后必须重新准备。
+		if phase==1: z.throw_phase = 0
+		return false
+	if phase==0:
+		var target = null
+		for p in plants:
+			var distance: float = z.x-cell_center(p.col,p.row).x
+			if not p.dead and absi(int(p.row)-int(z.row))<=1 and distance>=0 and distance<=CELL_W*3.0:
+				if target==null or p.col>target.col: target = p
+		if target==null: return false
+		z.throw_col = target.col
+		z.throw_row = target.row
+		z.throw_phase = 1
+		z.throw_time = 0.0
+		z.walking = false
+		z.biting = false
+		return true
+	z.walking = false
+	z.biting = false
+	z.throw_time += delta
+	if phase==1 and z.throw_time>=1.2:
+		var start := basket_ball_position(z,zombie_display_position(z),1.0)
+		var target_row := int(z.get("throw_row",z.row))
+		var finish := cell_center(z.throw_col,target_row)
+		projectiles.append({"basketball":true,"row":target_row,"col":z.throw_col,"x":start.x,"y":start.y,
+			"start":start,"finish":finish,"elapsed":0.0,"duration":0.8,"dead":false})
+		z.throw_phase = 2
+		z.throw_time = 0.0
+		z.speed = 15.0
+	elif phase==2 and z.throw_time>=0.35:
+		z.throw_phase = 3
+	return true
+
 func update_zombies(delta: float) -> void:
-	for z in zombies:
+	for z in zombies.duplicate():
 		if z.dead: continue
 		z.anim += delta
+		if z.kind=="imp" and z.get("airborne",false):
+			WildlandRules.update_flying_imp(self,z,delta)
+			continue
 		z.slow = maxf(0.0, z.slow - delta)
 		z.draw_row = move_toward(float(z.get("draw_row",z.row)),float(z.row),delta*3.2)
+		if z.kind=="glider" and zombie_is_airborne(z):
+			z.rooted = false
+			z.biting = false
+			z.walking = false
+			var glide_slow_factor := 0.5 if z.slow>0.0 else 1.0
+			z.x -= z.speed*glide_slow_factor*delta*sand_speed_multiplier()
+			if z.x<=float(z.landing_x):
+				z.x = float(z.landing_x)
+				z.airborne = false
+				z.speed = float(z.ground_speed)
+				z.walking = true
+				burst(Vector2(z.x,BOARD_Y+z.row*CELL_H+CELL_H/2.0),Color("#8cae93"),10)
+				play_sfx(155.0,0.16,0.16,"noise")
+			continue
 		var rooted: bool = bool(z.get("rooted",false)) and z.kind!="kart"
+		if z.kind=="giant" and WildlandRules.update_giant(self,z,delta,rooted): continue
+		if z.kind=="basket" and update_basket_attack(z,delta,rooted):
+			continue
 		if z.kind=="kart":
 			z.rooted = false
 		if z.kind=="swing" and not rooted:
@@ -1041,7 +1443,7 @@ func update_zombies(delta: float) -> void:
 				else:
 					play_sfx(720.0,0.16,0.18,"sweep_down")
 		var arm_loss_hp := 180.0 if z.kind=="camo" else 100.0
-		if z.kind not in ["kart","imp"] and z.hp <= arm_loss_hp and not z.get("arm_lost", false):
+		if z.kind not in ["kart","imp","giant"] and z.hp <= arm_loss_hp and not z.get("arm_lost", false):
 			z.arm_lost = true
 			var arm_y_offset := 20.0 if z.kind=="camo" else -18.0
 			detached_arms.append({"pos":Vector2(z.x + 13.0, BOARD_Y + z.row * CELL_H + CELL_H/2.0 - ZOMBIE_BOARD_LIFT + arm_y_offset),
@@ -1056,7 +1458,7 @@ func update_zombies(delta: float) -> void:
 			z.walking = not rooted
 			var kart_slow_factor := 0.5 if z.slow>0.0 else 1.0
 			if not rooted:
-				z.x -= z.speed*kart_slow_factor*delta
+				z.x -= z.speed*kart_slow_factor*delta*sand_speed_multiplier()
 			if z.x < 115.0: game_state = "lose"
 			continue
 		# 定身会立刻中断啃咬；目标切换后也不能沿用上一帧的攻击状态。
@@ -1072,24 +1474,34 @@ func update_zombies(delta: float) -> void:
 			if target.hp <= 0.0: target.dead = true
 		elif not rooted:
 			var slow_factor := 0.5 if z.slow > 0.0 else 1.0
-			z.x -= z.speed * slow_factor * delta
+			z.x -= z.speed * slow_factor * delta*sand_speed_multiplier()
 		if z.x < 115.0:
 			game_state = "lose"
 
 func update_zombie_armor(z: Dictionary) -> void:
-	if z.kind not in ["cone","bucket","charger"] or z.get("armor_lost",false) or z.hp > 190.0:
+	if z.kind not in ["cone","bucket","charger","copper"] or z.get("armor_lost",false) or z.hp > 190.0:
 		return
 	z.armor_lost = true
 	var drop_y: float = BOARD_Y + float(z.row) * CELL_H + CELL_H/2.0 - ZOMBIE_BOARD_LIFT - 78.0
 	dropped_armor.append({"kind":z.kind,"pos":Vector2(z.x-5.0,drop_y),
 		"vel":Vector2(rng.randf_range(-52.0,32.0),-92.0),"angle":0.0,
 		"spin":rng.randf_range(-5.5,5.5),"life":1.45})
-	burst(Vector2(z.x,drop_y),Color("#e9a34e") if z.kind=="cone" else Color("#aab4b6"),7)
-	play_sfx(185.0 if z.kind=="cone" else 110.0 if z.kind=="charger" else 125.0,0.11,0.12,"square")
+	var armor_burst_color := Color("#e9a34e") if z.kind=="cone" else Color("#c77a45") if z.kind=="copper" else Color("#aab4b6")
+	burst(Vector2(z.x,drop_y),armor_burst_color,7)
+	play_sfx(185.0 if z.kind=="cone" else 96.0 if z.kind=="copper" else 110.0 if z.kind=="charger" else 125.0,0.11,0.12,"square")
 
 func plant_at_zombie(z: Dictionary):
+	if zombie_is_airborne(z):
+		return null
+	for shell in plants:
+		if not shell.dead and shell.kind=="pumpkin" and shell.row==z.row and absf(z.x-cell_center(shell.col,shell.row).x)<54.0:
+			return shell
 	for p in plants:
 		if not p.dead and p.row == z.row:
+			# 樱桃炸弹从放下到引爆始终无敌，也不作为啃咬或车辆碾压目标；
+			# 它只会在 explode_cherry() 完成伤害结算后自行消失。
+			if p.kind in ["cherry","bbq_mushroom"]:
+				continue
 			# 倭瓜一旦锁定目标就进入不可伤害的攻击过程；跳起中的倭瓜也不再
 			# 作为啃咬或车辆碾压的阻挡物。
 			if p.kind=="squash" and int(p.get("squash_phase",0))>0:
@@ -1297,6 +1709,7 @@ func setup_sfx_audio() -> void:
 		[520.0, 0.09, 0.08, "square"], [105.0, 0.36, 0.42, "noise"],
 		[82.0, 0.3, 0.34, "noise"], [390.0, 0.045, 0.08, "square"],
 		[310.0, 0.045, 0.08, "square"], [185.0, 0.11, 0.12, "square"],
+		[96.0, 0.11, 0.12, "square"],
 		[125.0, 0.11, 0.12, "square"], [145.0, 0.12, 0.11, "square"],
 		[880.0, 0.11, 0.14, "sine"], [92.0, 0.45, 0.3, "noise"],
 		[740.0, 0.28, 0.22, "sine"],
@@ -1330,7 +1743,8 @@ func start_music() -> void:
 func build_level_music_cache() -> Dictionary:
 	return {
 		"frontyard":AudioSynth.create_music("frontyard"),
-		"wasteland":AudioSynth.create_music("wasteland")
+		"wasteland":AudioSynth.create_music("wasteland"),
+		"wildland":AudioSynth.create_music("wildland")
 	}
 
 func collect_music_prewarm(wait_for_completion := false) -> void:
@@ -1345,6 +1759,7 @@ func collect_music_prewarm(wait_for_completion := false) -> void:
 
 func desired_music_track() -> String:
 	if game_state in ["prepare","play","win","lose"]:
+		if is_wildland_level(): return "wildland"
 		return "wasteland" if is_wasteland_level() else "frontyard"
 	return "menu"
 
@@ -1410,7 +1825,8 @@ func load_save_game() -> void:
 	var loaded := Persistence.load_campaign(SAVE_PATH, {
 		"unlocked_level":unlocked_level, "high_score":high_score,
 		"campaign_completed":campaign_completed,"money":money,
-		"item_inventory":item_inventory,"claimed_money_bags":claimed_money_bags
+		"item_inventory":item_inventory,"claimed_money_bags":claimed_money_bags,
+		"sun_shovel_level":sun_shovel_level,"starting_sun_level":starting_sun_level
 	}, LEVEL_DATA)
 	unlocked_level = loaded.unlocked_level
 	high_score = loaded.high_score
@@ -1419,12 +1835,15 @@ func load_save_game() -> void:
 	money = loaded.money
 	item_inventory = loaded.item_inventory
 	claimed_money_bags = loaded.claimed_money_bags
+	sun_shovel_level = loaded.sun_shovel_level
+	starting_sun_level = int(loaded.get("starting_sun_level",0))
 
 func save_game() -> void:
 	Persistence.save_campaign(SAVE_PATH, {
 		"unlocked_level":unlocked_level, "high_score":high_score,
 		"campaign_completed":campaign_completed, "saved_loadouts":saved_loadouts,
-		"money":money,"item_inventory":item_inventory,"claimed_money_bags":claimed_money_bags
+		"money":money,"item_inventory":item_inventory,"claimed_money_bags":claimed_money_bags,
+		"sun_shovel_level":sun_shovel_level,"starting_sun_level":starting_sun_level
 	}, LEVEL_DATA.size())
 
 func apply_saved_display_mode() -> void:
@@ -1531,6 +1950,53 @@ func purchase_item(kind: String) -> void:
 	show_message("已购买%s"%data.name,1.3)
 	play_sfx(760.0,0.12,0.14,"sine")
 	save_game()
+
+func purchase_sun_shovel() -> void:
+	if unlocked_level<GameData.SUN_SHOVEL_UNLOCK_LEVEL and not campaign_completed:
+		show_message("完成荒地-第14关后解锁",1.4)
+		return
+	if sun_shovel_level>=2:
+		show_message("阳光铲已升满",1.3)
+		return
+	var price: int = GameData.SUN_SHOVEL_PRICES[sun_shovel_level]
+	if money<price:
+		show_message("资金不足",1.3)
+		return
+	money -= price
+	sun_shovel_level += 1
+	show_message("阳光铲升级：返还%d%%"%roundi(GameData.SUN_SHOVEL_RATES[sun_shovel_level]*100.0),1.5)
+	play_sfx(920.0,0.14,0.16,"sine")
+	save_game()
+
+func purchase_starting_sun() -> void:
+	if unlocked_level<GameData.STARTING_SUN_UNLOCK_LEVEL:
+		show_message("完成荒地-第20关后解锁",1.4)
+		return
+	if starting_sun_level>=2:
+		show_message("新增初始阳光已升满",1.3)
+		return
+	var price: int = GameData.STARTING_SUN_PRICES[starting_sun_level]
+	if money<price:
+		show_message("资金不足",1.3)
+		return
+	money -= price
+	starting_sun_level += 1
+	show_message("初始阳光永久增加至%d"%(150+starting_sun_level*100),1.5)
+	play_sfx(920.0,0.14,0.16,"sine")
+	save_game()
+
+func shovel_refund_for(kind: String) -> int:
+	if kind not in PLANT_DATA:
+		return 0
+	return floori(float(PLANT_DATA[kind].cost)*float(GameData.SUN_SHOVEL_RATES[sun_shovel_level]))
+
+func remove_plant_with_shovel(plant: Dictionary) -> void:
+	var refund := shovel_refund_for(String(plant.kind))
+	plant.dead = true
+	if refund>0:
+		sun_points += refund
+		show_message("阳光返还 +%d"%refund,1.2)
+	burst(cell_center(plant.col,plant.row),Color("#d7a66e"),8)
 
 func show_message(text: String, duration: float) -> void:
 	message = text
@@ -1646,10 +2112,12 @@ func handle_click(pos: Vector2) -> void:
 		if Rect2(50,635,190,58).has_point(pos):
 			game_state = "title"
 			return
-		var shop_kinds := ["air_bomb","sun_pack"]
+		var shop_kinds := ["air_bomb","sun_pack","sun_shovel","starting_sun"]
 		for i in shop_kinds.size():
-			if Rect2(300+i*450,444,230,48).has_point(pos):
-				purchase_item(shop_kinds[i])
+			if shop_buy_rect(i).has_point(pos):
+				if shop_kinds[i]=="sun_shovel": purchase_sun_shovel()
+				elif shop_kinds[i]=="starting_sun": purchase_starting_sun()
+				else: purchase_item(shop_kinds[i])
 				return
 		return
 	if game_state == "level_select":
@@ -1720,11 +2188,14 @@ func handle_click(pos: Vector2) -> void:
 			return
 		var existing = get_plant(hover_cell.x, hover_cell.y)
 		if selected == "shovel":
-			var old = existing
+			var old = get_pumpkin(hover_cell.x,hover_cell.y)
+			if old==null: old = existing
 			if old != null:
-				old.dead = true
-				burst(cell_center(old.col,old.row),Color("#d7a66e"),8)
+				remove_plant_with_shovel(old)
 			selected = ""
+		elif selected=="pumpkin":
+			if is_plantable_cell(hover_cell.y) and get_pumpkin(hover_cell.x,hover_cell.y)==null:
+				place_plant("pumpkin",hover_cell.x,hover_cell.y)
 		elif existing != null and existing.kind == "yam_guard":
 			if is_wasteland_level() and existing.row == 2:
 				existing.deploy_dir *= -1
@@ -1764,6 +2235,10 @@ func handle_prepare_click(pos: Vector2) -> void:
 			var logical_row := int(i/PREPARE_POOL_COLUMNS)
 			if logical_row >= prepare_pool_row_offset and logical_row < prepare_pool_row_offset+PREPARE_POOL_VISIBLE_ROWS and prepare_card_rect(i).has_point(pos):
 				var kind: String = available_plants[i]
+				if is_plant_locked(kind):
+					show_message("该植物在本关被锁定",1.5)
+					play_sfx(145.0,0.07,0.07,"square")
+					return
 				var selected_index := equipped_plants.find(kind)
 				if selected_index >= 0:
 					equipped_plants.remove_at(selected_index)
@@ -1814,10 +2289,12 @@ func handle_almanac_click(pos: Vector2) -> void:
 			return
 
 func place_plant(kind: String, col: int, row: int) -> void:
+	if not is_plantable_cell(row): return
+	if (get_pumpkin(col,row) if kind=="pumpkin" else get_plant(col,row))!=null: return
 	var data: Dictionary = PLANT_DATA[kind]
 	sun_points -= data.cost
 	cooldowns[kind] = data.cool
-	var first_timer: float = 4.0 if kind == "sunflower" else (data.interval if kind == "cherry" else (data.arm_time if kind == "mine" else 0.15))
+	var first_timer: float = 4.0 if kind == "sunflower" else (data.interval if kind in ["cherry","bbq_mushroom"] else (data.arm_time if kind == "mine" else 0.15))
 	plants.append({"kind":kind,"col":col,"row":row,"hp":data.hp,"max_hp":data.hp,
 		"timer":first_timer,"anim":rng.randf_range(0,2),"armed":false,"dead":false,
 		"deploy_dir":-1,"respawn_timer":0.6,"minion_active":false,"slime_target_id":-1,
