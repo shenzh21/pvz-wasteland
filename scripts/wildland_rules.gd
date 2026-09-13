@@ -85,7 +85,8 @@ static func update_giant(game, z: Dictionary, delta: float, rooted: bool) -> boo
 	z.smash_time = float(z.get("smash_time",0.0))+delta
 	if z.smash_time>=1.25:
 		# 巨人的砸击不同于篮球：同时砸毁南瓜和内部植物，仍保留无敌规则。
-		if target.kind=="pumpkin":
+		# 阻挡目标也可能是没有 kind 字段的小红薯；只有南瓜才处理内部植物。
+		if target.get("kind", "")=="pumpkin":
 			var inner = game.get_plant(target.col,target.row)
 			if inner!=null and inner.kind not in ["cherry","bbq_mushroom"] and not (inner.kind=="squash" and int(inner.get("squash_phase",0))>0):
 				inner.dead = true

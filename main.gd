@@ -7,6 +7,9 @@ const WildlandRules := preload("res://scripts/wildland_rules.gd")
 const PepperRules := preload("res://scripts/pepper_rules.gd")
 
 func _ready() -> void:
+	# 在主菜单出现前载入共享图集，避免第一次种植/进入新地图时同步加载。
+	GardenArt.CachedArt.warmup()
+	CachedBackground.warmup()
 	rng.randomize()
 	get_tree().root.content_scale_size = Vector2i(int(W), int(H))
 	get_tree().root.content_scale_mode = Window.CONTENT_SCALE_MODE_VIEWPORT
@@ -1045,6 +1048,7 @@ func update_plants(delta: float) -> void:
 		p.timer -= delta
 		if p.dead: continue
 		p.anim += delta
+		p.visual_pulse = maxf(0.0,float(p.get("visual_pulse",0.0))-delta*5.0)
 		match p.kind:
 			"sky_pepper":
 				PepperRules.attack(self,p)
@@ -1055,6 +1059,7 @@ func update_plants(delta: float) -> void:
 				if p.timer <= 0.0:
 					spawn_sun(cell_center(p.col, p.row) + Vector2(0, -25), false)
 					p.timer = SUNFLOWER_INTERVAL
+					p.visual_pulse = 1.0
 			"pea", "snow", "cactus", "short_pea", "energy_pea":
 				var hits_prone: bool = bool(PLANT_DATA[p.kind].get("hits_prone",false))
 				if p.timer <= 0.0 and has_zombie_ahead(p.row, cell_center(p.col, p.row).x,hits_prone):
@@ -1066,6 +1071,7 @@ func update_plants(delta: float) -> void:
 							"max_hits":PLANT_DATA.cactus.max_targets if p.kind=="cactus" else 1,
 							"hits_prone":hits_prone,"dead":false})
 					p.timer = PLANT_DATA[p.kind].interval
+					p.visual_pulse = 1.0
 			"needle":
 				if p.timer <= 0.0:
 					var target = find_needle_target(p)
@@ -1075,6 +1081,7 @@ func update_plants(delta: float) -> void:
 							"speed":360.0,"damage":PLANT_DATA.needle.damage,"snow":false,
 							"needle":true,"target":target,"dead":false})
 						p.timer = PLANT_DATA.needle.interval
+						p.visual_pulse = 1.0
 			"slime":
 				var target = get_zombie_by_id(int(p.get("slime_target_id",-1)))
 				if not slime_target_valid(p,target):
@@ -1086,6 +1093,7 @@ func update_plants(delta: float) -> void:
 					target.rooted = true
 					if p.timer <= 0.0:
 						damage_zombie(target,PLANT_DATA.slime.damage)
+						p.visual_pulse = 1.0
 						p.timer = PLANT_DATA.slime.interval
 			"cherry":
 				if p.timer <= 0.0 and not p.dead:

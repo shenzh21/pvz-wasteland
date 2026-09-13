@@ -1,8 +1,8 @@
 # pvz:wasteland
 
-一款使用 Godot 4.7 制作的中文塔防游戏。当前版本为 **0.4**。核弹头兵子制作。
+一款使用 Godot 4.7 制作的中文塔防游戏。当前版本为 **0.5**。
 
-项目中的植物、场景、界面、粒子效果、音乐和音效主要由程序实时生成。基础僵尸使用项目内绘制的分层 SVG 素材，由程序驱动关节动画；未直接收录原游戏的图片、模型、字体或音频素材。
+项目中的美术、音乐和音效主要由代码制作。四批植物在开发期烘焙为共享部件图集，游戏中实时驱动呼吸、摆动、眨眼和攻击动画；三种地图的静态背景也预先缓存。界面、弹丸及粒子仍使用程序绘制，基础僵尸使用项目内绘制的分层 SVG 素材和关节动画。未直接收录原游戏的图片、模型、字体或音频素材。
 
 ## 当前内容
 
@@ -42,6 +42,11 @@
 
 - `main.gd`：场景生命周期、战斗实体更新与输入控制。
 - `scripts/game_view.gd`：共享运行状态、界面与图形绘制。
+- `scripts/garden_art.gd`、`scripts/plant_batch2_art.gd`、`scripts/plant_batch3_art.gd`、`scripts/plant_batch4_art.gd`：四批植物的程序化美术源稿。
+- `scripts/cached_plant_art.gd`：共享部件图集与实时动画；`assets/plants/` 保存烘焙结果。
+- `scripts/cached_background.gd`：三种地图及选卡延伸背景的共享贴图。
+- `scripts/scenery_art.gd`：三种地图的场景源稿，包括草皮、黄土、沙丘、围栏和候场泥地，开发期烘焙。
+- `scripts/equipment_art.gd`、`assets/zombies/equipment/`：路障、铁桶、钢盔、铜球及小鬼车的代码绘制 SVG 部件；佩戴与掉落共用防具素材，车轮转动随实际位移。
 - `scripts/zombie_art.gd`：基础僵尸 SVG 部件绘制与关节动画。
 - `scripts/imp_art.gd`：红衣小鬼与卡丁车驾驶员，复用关节姿态并调整头身比例。
 - `scripts/camo_art.gd`：军迷僵尸迷彩分层素材与匍匐、待机、啃咬动画。
@@ -54,9 +59,15 @@
 
 新增植物、僵尸或关卡时，应先在 `game_data.gd` 添加定义；波次平衡、存档格式和音频生成分别在对应模块中维护，避免继续向主场景脚本堆叠无关职责。
 
+修改上述植物源稿或静态地图后，分别运行 `godot --path . --script res://tools/bake_plant_art.gd` 和 `godot --path . --script res://tools/bake_backgrounds.gd`，再让编辑器导入更新后的图片。烘焙需要图形渲染，不能使用 `--headless`。运行游戏不会重新烘焙，也不会为每株植物复制图集。第三批包含仙人掌、粘液多肉、倭瓜和烧烤蘑菇；其攻击动画由射击、锁敌和引爆/跳砸阶段驱动。
+
+第四批包含南瓜头、防风草和朝天椒。南瓜前后层共享动画时间，并分别绘制在内部植物前后；防风草摆动和抽击由沙风与实际攻击驱动，朝天椒保持原攻击时序并表现发射前蓄力和发射回弹。动画随暂停和游戏倍速同步。
+
 ## 开源协议
 
 本项目原创代码采用 [MIT License](LICENSE) 发布。该协议不授予任何第三方名称、商标、角色或既有作品内容的权利。
+
+本游戏使用 Godot Engine（MIT 许可）。引擎许可全文见 [GODOT_LICENSE.txt](GODOT_LICENSE.txt)，引擎所含第三方组件的版权及许可全文见 [GODOT_THIRD_PARTY_NOTICES.txt](GODOT_THIRD_PARTY_NOTICES.txt)。这两个文件随 Windows 发行包提供，应在再分发时保留。官方许可页面：https://godotengine.org/license/ 。
 
 ## 致谢与声明
 

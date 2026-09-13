@@ -13,6 +13,7 @@ static func attack(game, plant: Dictionary) -> void:
 	game.projectiles.append({"pepper":true,"row":plant.row,"target":target,"start":start,"finish":finish,
 		"x":start.x,"y":start.y,"elapsed":0.0,"duration":0.9,"dead":false})
 	plant.timer = game.PLANT_DATA.sky_pepper.interval
+	plant.visual_pulse = 1.0
 
 static func update_projectile(game, projectile: Dictionary, delta: float) -> void:
 	projectile.elapsed += delta

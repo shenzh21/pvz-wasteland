@@ -123,6 +123,33 @@ func run() -> void:
 	z = giant(2,3000.0,3)
 	Rules.update_giant(game,z,1.26,false)
 	check(game.get_plant(3,2)==null and game.get_pumpkin(3,2)==null,"巨人同时砸毁南瓜和内部植物")
+	reset()
+	# 两个防卫队向同一格派兵，走真实的目标选择与僵尸更新入口。
+	game.place_plant("yam_guard",3,0)
+	game.place_plant("yam_guard",3,2)
+	var upper: Dictionary = game.get_plant(3,0)
+	var lower: Dictionary = game.get_plant(3,2)
+	upper.deploy_dir = 1
+	lower.deploy_dir = -1
+	game.yam_minions.clear()
+	game.spawn_yam_minion(upper)
+	game.spawn_yam_minion(lower)
+	var first: Dictionary = game.yam_minions[0]
+	var second: Dictionary = game.yam_minions[1]
+	check(not first.has("kind"),"小红薯使用独立实体结构")
+	z = giant(1,3000.0,3)
+	game.update_zombies(0.5)
+	check(not first.dead and not second.dead,"砸击小红薯也需要前摇")
+	game.update_zombies(0.76)
+	check(first.dead and first.hp==0.0 and not second.dead and second.hp==500.0,"只砸死同格最前面的小红薯")
+	game.update_zombies(0.5)
+	check(not second.dead,"第二个小红薯需要新的砸击前摇")
+	game.update_zombies(0.76)
+	check(second.dead and second.hp==0.0,"随后砸死第二个小红薯")
+	check(not upper.dead and not lower.dead,"砸死小红薯不伤害防卫队本体")
+	var previous_x := float(z.x)
+	game.update_zombies(0.1)
+	check(z.x<previous_x,"清除阻挡后巨人继续前进")
 	print("芜地规则测试：",failures," 个失败")
 	if "--capture" in OS.get_cmdline_user_args():
 		reset()

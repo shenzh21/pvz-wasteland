@@ -4,6 +4,8 @@ extends Node2D
 const CamoArt := preload("res://scripts/camo_art.gd")
 
 const ImpArt := preload("res://scripts/imp_art.gd")
+const EquipmentArt := preload("res://scripts/equipment_art.gd")
+const SceneryArt := preload("res://scripts/scenery_art.gd")
 
 var art_parent_transform := Transform2D.IDENTITY
 
@@ -13,6 +15,11 @@ func set_world_draw_offset(offset: Vector2) -> void:
 
 const ZombieArt := preload("res://scripts/zombie_art.gd")
 const WildlandArt := preload("res://scripts/wildland_art.gd")
+const GardenArt := preload("res://scripts/garden_art.gd")
+const Batch2Art := preload("res://scripts/plant_batch2_art.gd")
+const Batch3Art := preload("res://scripts/plant_batch3_art.gd")
+const Batch4Art := preload("res://scripts/plant_batch4_art.gd")
+const CachedBackground := preload("res://scripts/cached_background.gd")
 
 const GameData := preload("res://scripts/game_data.gd")
 const W := GameData.W
@@ -576,63 +583,12 @@ func draw_prepare_slot(index: int, kind: String) -> void:
 	draw_string(ThemeDB.fallback_font,rect.position+Vector2(7,21),key_name(plant_keys[index]),HORIZONTAL_ALIGNMENT_CENTER,20,11,Color("#fff0a2"))
 	draw_string(ThemeDB.fallback_font,rect.position+Vector2(64,66),"已选择",HORIZONTAL_ALIGNMENT_LEFT,73,10,Color("#cfe5bd"))
 
+func draw_world_static(extended := false) -> void:
+	SceneryArt.draw(self,extended)
+
 func draw_world(extended := false) -> void:
-	draw_rect(Rect2(0,0,W + (650.0 if extended else 0.0),H),Color("#9ed76b"))
-	if is_wildland_level():
-		draw_rect(Rect2(0,0,W+(650.0 if extended else 0.0),H),Color("#c2b17c"))
-		for i in range(16):
-			var x := float(i*133)
-			draw_colored_polygon(PackedVector2Array([Vector2(x,138),Vector2(x+65,91+i%3*9),Vector2(x+155,138)]),Color("#ad9d6f"))
-	# House and path
-	draw_rect(Rect2(0,120,BOARD_X,530),Color("#d6b174"))
-	for y in range(135,640,38): draw_line(Vector2(0,y),Vector2(BOARD_X,y),Color("#b68c59"),2)
-	draw_rect(Rect2(0,120,142,530),Color("#ad594b"))
-	draw_rect(Rect2(22,220,90,150),Color("#513c3f"))
-	draw_rect(Rect2(37,235,60,120),Color("#80bfd0"))
-	if is_wildland_level():
-		draw_rect(Rect2(0,120,142,530),Color("#807653"))
-		for y in range(143,650,43):
-			draw_line(Vector2(0,y),Vector2(142,y-8),Color("#b0a079"),4)
-		draw_line(Vector2(125,130),Vector2(135,650),Color("#514e37"),9)
-	# 关卡准备镜头中的右侧是僵尸候场泥地，草坪仍严格只有 5×9。
-	if extended:
-		var staging_x := BOARD_X + COLS * CELL_W
-		draw_rect(Rect2(staging_x,90,685,630),Color("#8b754f"))
-		draw_rect(Rect2(staging_x,90,12,630),Color("#604b36"))
-		var rock_specs := [
-			[Vector2(42,82),Vector2(25,13)],[Vector2(166,147),Vector2(17,25)],
-			[Vector2(307,63),Vector2(31,17)],[Vector2(518,126),Vector2(21,12)],
-			[Vector2(92,276),Vector2(15,10)],[Vector2(249,238),Vector2(28,14)],
-			[Vector2(448,319),Vector2(18,27)],[Vector2(611,250),Vector2(32,16)],
-			[Vector2(48,471),Vector2(27,18)],[Vector2(193,414),Vector2(14,22)],
-			[Vector2(362,526),Vector2(35,15)],[Vector2(566,451),Vector2(20,13)],
-			[Vector2(646,580),Vector2(13,20)]
-		]
-		for i in rock_specs.size():
-			var center: Vector2 = Vector2(staging_x,90) + rock_specs[i][0]
-			var radius: Vector2 = rock_specs[i][1]
-			var stone := PackedVector2Array()
-			for point_index in 7:
-				var angle := TAU * float(point_index) / 7.0
-				var roughness := 0.84 + 0.16 * sin(float(point_index * 5 + i * 3))
-				stone.append(center + Vector2(cos(angle)*radius.x,sin(angle)*radius.y)*roughness)
-			draw_colored_polygon(stone,Color("#75654d"))
-			draw_line(center-radius*Vector2(0.45,0.25),center+radius*Vector2(0.28,-0.18),Color("#a18a60"),3)
-	# lawn checkerboard
-	var draw_cols := COLS
-	for row in ROWS:
-		for col in draw_cols:
-			var dirt_row := is_wasteland_level() and row % 2 == 1
-			var c := (Color("#c99b55") if (row+col)%2==0 else Color("#bc8c48")) if dirt_row else (Color("#75c84c") if (row+col)%2==0 else Color("#6cbd45"))
-			if is_wildland_level():
-				c = (Color("#c3a873") if col%2==0 else Color("#bca16d")) if dirt_row else (Color("#a1a264") if col%2==0 else Color("#94965b"))
-			draw_rect(Rect2(BOARD_X+col*CELL_W,BOARD_Y+row*CELL_H,CELL_W,CELL_H),c)
-			if is_wildland_level(): WildlandArt.terrain(self,Vector2(BOARD_X+col*CELL_W,BOARD_Y+row*CELL_H),row,col)
-			var seam_color := Color(0.35,0.22,0.08,.28) if dirt_row else Color(0.2,0.45,0.15,.25)
-			draw_line(Vector2(BOARD_X+col*CELL_W,BOARD_Y+row*CELL_H+CELL_H-2),Vector2(BOARD_X+(col+1)*CELL_W,BOARD_Y+row*CELL_H+CELL_H-2),seam_color,2)
-	# dirt borders
-	draw_rect(Rect2(BOARD_X,BOARD_Y-12,draw_cols*CELL_W,12),Color("#77543b"))
-	draw_rect(Rect2(BOARD_X,BOARD_Y+ROWS*CELL_H,draw_cols*CELL_W,18),Color("#77543b"))
+	var map := "wildland" if is_wildland_level() else "wasteland" if is_wasteland_level() else "frontyard"
+	draw_texture(CachedBackground.get_texture(map,extended),Vector2.ZERO)
 	if hover_cell.x >= 0 and selected != "":
 		var empty := get_pumpkin(hover_cell.x,hover_cell.y)==null if selected=="pumpkin" else get_plant(hover_cell.x,hover_cell.y)==null
 		var ok := selected=="item_air_bomb" or (empty and is_plantable_cell(hover_cell.y)) or selected=="shovel"
@@ -640,7 +596,7 @@ func draw_world(extended := false) -> void:
 	for m in mowers: draw_mower(m)
 	for p in plants:
 		if p.kind=="pumpkin":
-			draw_pumpkin_layer(cell_center(p.col,p.row)+Vector2(0,sin(p.anim*3.0)*2.0),1.0,true)
+			Batch4Art.pumpkin(self,cell_center(p.col,p.row),1.0,true,float(p.anim))
 	for p in plants:
 		if p.kind!="pumpkin": draw_plant(p)
 	for p in plants:
@@ -758,7 +714,7 @@ func draw_plant(p: Dictionary) -> void:
 		elif phase==3:
 			pos.x = float(p.get("squash_target_x",pos.x))
 			pos.y += 19.0
-	else:
+	elif p.kind not in GardenArt.KINDS and p.kind not in Batch2Art.KINDS and p.kind not in Batch3Art.KINDS and p.kind not in Batch4Art.KINDS:
 		pos.y += bob
 	if p.kind=="slime" and int(p.get("slime_target_id",-1))>=0:
 		for z in zombies:
@@ -770,42 +726,49 @@ func draw_plant(p: Dictionary) -> void:
 					var bead_pos := (pos+Vector2(9,-5)).lerp(target_pos,float(part+1)/5.0)
 					draw_circle(bead_pos,4,Color("#82d6a8"))
 				break
-	if p.kind == "wind_grass": WildlandArt.grass(self,pos,1.0,float(p.get("wind_attack",0.0)))
-	elif p.kind == "pumpkin": draw_pumpkin_layer(pos,1.0,false)
+	if p.kind in GardenArt.KINDS: GardenArt.plant(self,p.kind,pos,1.0,float(p.anim),float(p.get("visual_pulse",0.0)))
+	elif p.kind in Batch2Art.KINDS:
+		var kind: String = "mine_hidden" if p.kind=="mine" and not p.armed else p.kind
+		var charge := clampf(1.0-float(p.timer)/0.72,0.0,1.0) if p.kind=="cherry" else 0.0
+		Batch2Art.draw(self,kind,pos,1.0,float(p.anim),float(p.get("visual_pulse",0.0)),charge)
+	elif p.kind in Batch3Art.KINDS:
+		var charge := clampf(1.0-float(p.timer)/0.72,0.0,1.0) if p.kind=="bbq_mushroom" else 0.0
+		var phase := int(p.get("squash_phase",0))
+		if p.kind=="squash" and phase==2:
+			GardenArt.oval(self,Vector2(pos.x,cell_center(p.col,p.row).y+40),Vector2(27,5),Color(0.12,0.24,0.13,0.12))
+		Batch3Art.draw(self,p.kind,pos,1.0,float(p.anim),float(p.get("visual_pulse",0.0)),charge,int(p.get("slime_target_id",-1))>=0,phase)
+	elif p.kind == "wind_grass":
+		Batch4Art.draw(self,p.kind,pos,1.0,float(p.anim),clampf(float(p.get("wind_attack",0.0))/0.16,0,1),1.0 if is_wildland_level() and sand_buff>0 else 0.0)
+	elif p.kind == "sky_pepper":
+		var charge := 0.0
+		if p.timer>0.0 and p.timer<0.18:
+			for z in zombies:
+				if not z.dead and z.row==p.row and z.x>=pos.x:
+					charge = 1.0-float(p.timer)/0.18
+					break
+		Batch4Art.draw(self,p.kind,pos,1.0,float(p.anim),float(p.get("visual_pulse",0.0)),charge)
+	elif p.kind == "pumpkin": Batch4Art.pumpkin(self,pos,1.0,false,float(p.anim))
 	elif p.kind == "mine": draw_potato_mine(pos, p.armed, 1.0)
 	else: draw_plant_shape(p.kind,pos,1.0)
 	if show_health_bars and p.hp < p.max_hp:
 		draw_bar(Vector2(pos.x-31,pos.y+(55 if p.kind=="pumpkin" else -49)),62,p.hp/p.max_hp,Color("#edb14e") if p.kind=="pumpkin" else Color("#7de05b"))
 
 func draw_pumpkin_layer(pos: Vector2, scale: float, back: bool) -> void:
-	pos.y += 12*scale
-	var shell := PackedVector2Array()
-	var rim := PackedVector2Array()
-	if back:
-		for i in range(33):
-			var angle := TAU*i/32.0
-			shell.append(pos+Vector2(cos(angle)*46,18+sin(angle)*23)*scale)
-	else:
-		# 前壁从开口的前半弧开始，不能填满整个开口遮住内部植物。
-		for i in range(17):
-			var angle := PI*i/16.0
-			shell.append(pos+Vector2(cos(angle)*43,3+sin(angle)*13)*scale)
-		for i in range(17):
-			var angle := PI-PI*i/16.0
-			shell.append(pos+Vector2(cos(angle)*46,18+sin(angle)*23)*scale)
-	draw_colored_polygon(shell,Color("#b45d25"))
-	for i in range(17):
-		var angle := PI*i/16.0+(PI if back else 0.0)
-		rim.append(pos+Vector2(cos(angle)*43,3+sin(angle)*13)*scale)
-	draw_polyline(rim,Color("#f4aa45"),6*scale)
-	if back: return
-	for x in [-30,-15,15,30]:
-		draw_line(pos+Vector2(x,17)*scale,pos+Vector2(x*0.8,35)*scale,Color("#d57c2c"),3*scale)
-	draw_colored_polygon(PackedVector2Array([pos+Vector2(-24,18)*scale,pos+Vector2(-10,22)*scale,pos+Vector2(-19,27)*scale]),Color("#463620"))
-	draw_colored_polygon(PackedVector2Array([pos+Vector2(24,18)*scale,pos+Vector2(10,22)*scale,pos+Vector2(19,27)*scale]),Color("#463620"))
-	draw_line(pos+Vector2(-9,32)*scale,pos+Vector2(9,32)*scale,Color("#463620"),3*scale)
+	Batch4Art.pumpkin(self,pos,scale,back)
 
 func draw_plant_shape(kind: String, pos: Vector2, scale: float) -> void:
+	if kind in Batch4Art.KINDS:
+		Batch4Art.draw(self,kind,pos,scale)
+		return
+	if kind in Batch3Art.KINDS:
+		Batch3Art.draw(self,kind,pos,scale)
+		return
+	if kind in Batch2Art.KINDS:
+		Batch2Art.draw(self,kind,pos,scale)
+		return
+	if kind in GardenArt.KINDS:
+		GardenArt.plant(self,kind,pos,scale)
+		return
 	if kind=="sky_pepper":
 		WildlandArt.pepper(self,pos,scale)
 		return
@@ -1062,38 +1025,12 @@ func draw_yam_minion(minion: Dictionary, stack_offset := Vector2.ZERO) -> void:
 	if minion.dead:
 		return
 	var pos := cell_center(minion.col,minion.row) + stack_offset
-	var bob := sin(minion.anim*4.0)*1.5
-	var body_color := Color("#ed8554") if minion.attack_flash <= 0.0 else Color("#ffd06b")
-	draw_circle(pos+Vector2(0,8+bob),22,body_color)
-	draw_circle(pos+Vector2(-8,3+bob),3,Color("#30231f"))
-	draw_circle(pos+Vector2(8,3+bob),3,Color("#30231f"))
-	draw_line(pos+Vector2(-7,15+bob),pos+Vector2(7,15+bob),Color("#77352d"),3)
-	draw_colored_polygon(PackedVector2Array([
-		pos+Vector2(-5,-13+bob),pos+Vector2(-1,-27+bob),
-		pos+Vector2(4,-14+bob),pos+Vector2(12,-24+bob),
-		pos+Vector2(9,-9+bob)
-	]),Color("#57a74b"))
-	draw_line(pos+Vector2(20,4+bob),pos+Vector2(31,-3+bob),Color("#7a3b2c"),5)
+	Batch2Art.draw(self,"yam_minion",pos,0.75,float(minion.anim),0.0,0.0,minion.attack_flash>0.0)
 	if show_health_bars and minion.hp < minion.max_hp:
 		draw_bar(Vector2(pos.x-27,pos.y-29-stack_offset.y*3.0),54,minion.hp/minion.max_hp,Color("#f09a5f"))
 
 func draw_potato_mine(pos: Vector2, armed: bool, scale: float) -> void:
-	var dirt := PackedVector2Array()
-	for i in 16:
-		var angle := TAU * float(i) / 16.0
-		dirt.append(pos + Vector2(cos(angle) * 35.0, 24.0 + sin(angle) * 11.0) * scale)
-	draw_colored_polygon(dirt, Color("#805b39"))
-	if not armed:
-		draw_circle(pos + Vector2(0, 18) * scale, 17 * scale, Color("#a67543"))
-		draw_circle(pos + Vector2(-7, 13) * scale, 2.5 * scale, Color("#3b2b25"))
-		draw_circle(pos + Vector2(8, 13) * scale, 2.5 * scale, Color("#3b2b25"))
-	else:
-		draw_circle(pos + Vector2(0, 5) * scale, 24 * scale, Color("#bd8749"))
-		draw_circle(pos + Vector2(-8, 0) * scale, 3.5 * scale, Color("#30251f"))
-		draw_circle(pos + Vector2(9, 0) * scale, 3.5 * scale, Color("#30251f"))
-		draw_line(pos + Vector2(-9, 13) * scale, pos + Vector2(10, 13) * scale, Color("#633d2b"), 3 * scale)
-		draw_rect(Rect2(pos + Vector2(-4, -27) * scale, Vector2(8, 12) * scale), Color("#d9b25b"))
-		draw_circle(pos + Vector2(0, -30) * scale, 5 * scale, Color("#f2d65c"))
+	Batch2Art.draw(self,"mine" if armed else "mine_hidden",pos,scale)
 
 const ZOMBIE_BOARD_LIFT := 12.0
 
@@ -1132,57 +1069,8 @@ func draw_zombie(z: Dictionary) -> void:
 		draw_line(pos+Vector2(-19,-21)*scale,pos+Vector2(-34,-30)*scale,Color("#70513b"),11*scale)
 		draw_line(pos+Vector2(-34,-30)*scale,pos+Vector2(-34,-43)*scale,skin,8*scale)
 		draw_circle(pos+Vector2(-34,-45)*scale,7*scale,skin)
-	if z.kind=="cone" and not z.get("armor_lost",false):
-		draw_colored_polygon(PackedVector2Array([head+Vector2(-22,-18)*scale,head+Vector2(1,-62)*scale,head+Vector2(25,-18)*scale]),Color("#e88737"))
-		draw_rect(Rect2(head+Vector2(-28,-21)*scale,Vector2(58,8)*scale),Color("#f0a246"))
-		draw_line(head+Vector2(-13,-36)*scale,head+Vector2(12,-36)*scale,Color("#f6c06b"),4*scale)
-	elif z.kind=="bucket" and not z.get("armor_lost",false):
-		draw_colored_polygon(PackedVector2Array([head+Vector2(-25,-55)*scale,head+Vector2(24,-51)*scale,head+Vector2(29,-17)*scale,head+Vector2(-21,-18)*scale]),Color("#879397"))
-		draw_rect(Rect2(head+Vector2(-30,-56)*scale,Vector2(61,7)*scale),Color("#c0c7c7"))
-		draw_line(head+Vector2(-16,-41)*scale,head+Vector2(21,-38)*scale,Color("#5d696c"),3*scale)
-	elif z.kind=="charger" and not z.get("armor_lost",false):
-		# 冲锋盔由圆顶和完整面甲组成；防具存在时遮住原脸，
-		# 仅通过观察缝和通气孔暗示里面的僵尸。
-		draw_colored_polygon(PackedVector2Array([
-			head+Vector2(-29,-13)*scale,head+Vector2(-24,-40)*scale,
-			head+Vector2(0,-57)*scale,head+Vector2(24,-40)*scale,
-			head+Vector2(30,-13)*scale
-		]),Color("#7f8d91"))
-		# 面甲向下覆盖整张脸，底部略微收窄以免看起来像方桶。
-		draw_colored_polygon(PackedVector2Array([
-			head+Vector2(-30,-15)*scale,head+Vector2(31,-15)*scale,
-			head+Vector2(28,20)*scale,head+Vector2(17,36)*scale,
-			head+Vector2(-18,34)*scale,head+Vector2(-29,19)*scale
-		]),Color("#6f7d81"))
-		draw_line(head+Vector2(-32,-14)*scale,head+Vector2(33,-14)*scale,Color("#bdc7c8"),6*scale)
-		draw_line(head+Vector2(0,-54)*scale,head+Vector2(0,-17)*scale,Color("#515e62"),3*scale)
-		draw_line(head+Vector2(-20,-39)*scale,head+Vector2(-26,-15)*scale,Color("#9da9ab"),3*scale)
-		draw_line(head+Vector2(20,-39)*scale,head+Vector2(26,-15)*scale,Color("#515e62"),3*scale)
-		# 狭窄的观察缝完全取代裸露的双眼。
-		draw_colored_polygon(PackedVector2Array([
-			head+Vector2(-23,-5)*scale,head+Vector2(24,-5)*scale,
-			head+Vector2(20,3)*scale,head+Vector2(-22,3)*scale
-		]),Color("#263235"))
-		draw_line(head+Vector2(-13,-2)*scale,head+Vector2(-5,-2)*scale,Color("#b9c97d"),2*scale)
-		# 通气孔和铆钉让下半张面甲保持可读性。
-		for vent_x in [-13.0,-5.0,5.0,13.0]:
-			draw_line(head+Vector2(vent_x,16)*scale,head+Vector2(vent_x-2.0,24)*scale,Color("#3f4b4f"),2*scale)
-		draw_circle(head+Vector2(-24,10)*scale,2.5*scale,Color("#c0c9ca"))
-		draw_circle(head+Vector2(24,10)*scale,2.5*scale,Color("#c0c9ca"))
-	elif z.kind=="copper" and not z.get("armor_lost",false):
-		# 厚重铜球完整包住头部，只留下狭窄观察孔；多层明暗和铆钉强化硬度感。
-		draw_circle(head+Vector2(0,-8)*scale,43*scale,Color("#4d2d22"))
-		draw_circle(head+Vector2(0,-8)*scale,38*scale,Color("#a75c32"))
-		draw_circle(head+Vector2(-7,-15)*scale,31*scale,Color("#bd7440"))
-		draw_arc(head+Vector2(-5,-12)*scale,30*scale,3.45,5.15,18,Color("#e2a063"),5*scale)
-		draw_arc(head+Vector2(3,-5)*scale,34*scale,-0.7,0.75,18,Color("#713b28"),5*scale)
-		draw_colored_polygon(PackedVector2Array([
-			head+Vector2(-30,-12)*scale,head+Vector2(29,-12)*scale,
-			head+Vector2(25,-2)*scale,head+Vector2(-27,-2)*scale
-		]),Color("#2d2824"))
-		draw_line(head+Vector2(-12,-7)*scale,head+Vector2(-3,-7)*scale,Color("#d4d49d"),2*scale)
-		for angle in [0.45,2.0,3.55,5.1]:
-			draw_circle(head+Vector2(cos(angle),sin(angle))*31*scale+Vector2(0,-8)*scale,3*scale,Color("#e0a069"))
+	if z.kind in EquipmentArt.ARMOR and not z.get("armor_lost",false):
+		EquipmentArt.armor(self,z.kind,head,scale)
 	elif z.kind=="runner":
 		draw_rect(Rect2(head+Vector2(-27,-24)*scale,Vector2(52,9)*scale),Color("#e95855"))
 		draw_colored_polygon(PackedVector2Array([head+Vector2(23,-22)*scale,head+Vector2(45,-33)*scale,head+Vector2(35,-17)*scale]),Color("#e95855"))
@@ -1281,20 +1169,10 @@ func draw_kart_zombie(z: Dictionary) -> void:
 	var pos := zombie_display_position(z)
 	var scale: float = z.get("draw_scale",1.0)
 	var bounce := sin(z.anim*3.2)*1.5 if z.get("walking",true) else 0.0
-	ImpArt.draw_driver(self,z,pos+Vector2(0,bounce)*scale,scale,art_parent_transform)
-	# 低矮、缓慢的自制卡丁车，前端朝向房子。
-	draw_circle(pos+Vector2(-31,31+bounce)*scale,14*scale,Color("#26302f"))
-	draw_circle(pos+Vector2(35,31+bounce)*scale,14*scale,Color("#26302f"))
-	draw_circle(pos+Vector2(-31,31+bounce)*scale,6*scale,Color("#89928a"))
-	draw_circle(pos+Vector2(35,31+bounce)*scale,6*scale,Color("#89928a"))
-	draw_colored_polygon(PackedVector2Array([
-		pos+Vector2(-54,8+bounce)*scale,pos+Vector2(-40,-12+bounce)*scale,
-		pos+Vector2(30,-10+bounce)*scale,pos+Vector2(52,15+bounce)*scale,
-		pos+Vector2(43,28+bounce)*scale,pos+Vector2(-49,28+bounce)*scale
-	]),Color("#d95443"))
-	draw_rect(Rect2(pos+Vector2(-54,12+bounce)*scale,Vector2(18,8)*scale),Color("#efbf59"))
-	draw_line(pos+Vector2(-16,-7+bounce)*scale,pos+Vector2(-28,-31+bounce)*scale,Color("#343e3a"),5*scale)
-	draw_circle(pos+Vector2(-30,-34+bounce)*scale,9*scale,Color("#343e3a"),false,4*scale)
+	var chassis_pos := pos+Vector2(0,bounce)*scale
+	EquipmentArt.kart(self,chassis_pos,scale,-float(z.x)/14.0,true)
+	ImpArt.draw_driver(self,z,chassis_pos,scale,art_parent_transform)
+	EquipmentArt.kart(self,chassis_pos,scale,-float(z.x)/14.0,false)
 	if z.get("rooted",false): draw_rooted_effect(pos,scale)
 	if show_health_bars and not z.get("hide_bar",false):
 		draw_bar(zombie_bar_position(z,pos)+Vector2(-39,-72)*scale,78*scale,z.hp/z.max_hp,Color("#df6b54"))
@@ -1324,29 +1202,8 @@ func draw_detached_arm(arm: Dictionary) -> void:
 	draw_circle(wrist,6.0,skin.darkened(.08))
 
 func draw_dropped_armor(armor: Dictionary) -> void:
-	var pos: Vector2 = armor.pos
-	var angle: float = armor.angle
-	if armor.kind == "cone":
-		draw_colored_polygon(PackedVector2Array([
-			pos+Vector2(-23,18).rotated(angle),pos+Vector2(0,-28).rotated(angle),
-			pos+Vector2(24,18).rotated(angle)]),Color("#e88737"))
-		draw_line(pos+Vector2(-27,20).rotated(angle),pos+Vector2(28,20).rotated(angle),Color("#f0a246"),7)
-	elif armor.kind == "bucket":
-		draw_colored_polygon(PackedVector2Array([
-			pos+Vector2(-24,-18).rotated(angle),pos+Vector2(24,-18).rotated(angle),
-			pos+Vector2(21,18).rotated(angle),pos+Vector2(-21,18).rotated(angle)]),Color("#879397"))
-		draw_line(pos+Vector2(-28,-20).rotated(angle),pos+Vector2(28,-20).rotated(angle),Color("#c0c7c7"),6)
-		draw_line(pos+Vector2(-17,-6).rotated(angle),pos+Vector2(17,-6).rotated(angle),Color("#5d696c"),3)
-	elif armor.kind == "copper":
-		draw_circle(pos,30,Color("#4d2d22"))
-		draw_circle(pos-Vector2(3,3),25,Color("#a75c32"))
-		draw_arc(pos-Vector2(4,5),20,3.5,5.0,14,Color("#e2a063"),4)
-		for angle_offset in [0.3,1.9,3.5,5.1]:
-			draw_circle(pos+Vector2(cos(angle+angle_offset),sin(angle+angle_offset))*20,2.5,Color("#d88d58"))
-	else:
-		draw_arc(pos,27,PI+angle,TAU+angle,18,Color("#77858a"),17)
-		draw_line(pos+Vector2(-30,0).rotated(angle),pos+Vector2(30,0).rotated(angle),Color("#b7c1c2"),7)
-		draw_line(pos+Vector2(0,-26).rotated(angle),pos+Vector2(0,-4).rotated(angle),Color("#566267"),3)
+	EquipmentArt.armor(self,String(armor.kind),Vector2(armor.pos),1.0,float(armor.angle),true)
+
 
 func basket_ball_position(z: Dictionary, pos: Vector2, size: float) -> Vector2:
 	var pose := ZombieArt.pose(z)

@@ -1,0 +1,853 @@
+[gd_resource type="Resource" format=3]
+
+[resource]
+metadata/parts = {
+"bbq_mushroom": [{
+"closed": Rect2(334, 1321, 144, 32),
+&"closed_dest": Rect2(-36, 32, 72, 16),
+&"dest": Rect2(-36, 32, 72, 16),
+"name": "shadow",
+"region": Rect2(334, 1321, 144, 32)
+}, {
+"closed": Rect2(480, 1321, 112, 101),
+&"closed_dest": Rect2(-28, -2, 56, 50.5),
+&"dest": Rect2(-28, -2, 56, 50.5),
+"name": "body",
+"region": Rect2(480, 1321, 112, 101)
+}, {
+"closed": Rect2(594, 1321, 164, 128),
+&"closed_dest": Rect2(-41, -41, 82, 64),
+&"dest": Rect2(-41, -41, 82, 64),
+"name": "cap",
+"region": Rect2(594, 1321, 164, 128)
+}, {
+"closed": Rect2(778, 1321, 18, 10),
+&"closed_dest": Rect2(-7.5, 19.5, 9, 5),
+&"dest": Rect2(-7, 16.5, 8, 11),
+"name": "body/eye",
+"region": Rect2(760, 1321, 16, 22)
+}, {
+"closed": Rect2(816, 1321, 18, 10),
+&"closed_dest": Rect2(4.5, 19.5, 9, 5),
+&"dest": Rect2(5, 16.5, 8, 11),
+"name": "body/eye",
+"region": Rect2(798, 1321, 16, 22)
+}, {
+"closed": Rect2(836, 1321, 65, 160),
+&"closed_dest": Rect2(-3, -46, 32.5, 80),
+&"dest": Rect2(-3, -46, 32.5, 80),
+"name": "body",
+"region": Rect2(836, 1321, 65, 160)
+}, {
+"closed": Rect2(903, 1321, 20, 24),
+&"closed_dest": Rect2(20, -50, 10, 12),
+&"dest": Rect2(20, -50, 10, 12),
+"name": "ember",
+"region": Rect2(903, 1321, 20, 24)
+}],
+"cactus": [{
+"closed": Rect2(868, 869, 144, 32),
+&"closed_dest": Rect2(-36, 32, 72, 16),
+&"dest": Rect2(-36, 32, 72, 16),
+"name": "shadow",
+"region": Rect2(868, 869, 144, 32)
+}, {
+"closed": Rect2(0, 1027, 67, 94),
+&"closed_dest": Rect2(-38.5, -26, 33.5, 47),
+&"dest": Rect2(-38.5, -26, 33.5, 47),
+"name": "cactus_left",
+"region": Rect2(0, 1027, 67, 94)
+}, {
+"closed": Rect2(69, 1027, 67, 69),
+&"closed_dest": Rect2(5, -13, 33.5, 34.5),
+&"dest": Rect2(5, -13, 33.5, 34.5),
+"name": "cactus_right",
+"region": Rect2(69, 1027, 67, 69)
+}, {
+"closed": Rect2(138, 1027, 96, 166),
+&"closed_dest": Rect2(-24, -42, 48, 83),
+&"dest": Rect2(-24, -42, 48, 83),
+"name": "body",
+"region": Rect2(138, 1027, 96, 166)
+}, {
+"closed": Rect2(254, 1027, 18, 10),
+&"closed_dest": Rect2(0.5, -19.5, 9, 5),
+&"dest": Rect2(1, -22.5, 8, 11),
+"name": "body/eye",
+"region": Rect2(236, 1027, 16, 22)
+}, {
+"closed": Rect2(274, 1027, 94, 57),
+&"closed_dest": Rect2(-12.5, -27, 47, 28.5),
+&"dest": Rect2(-12.5, -27, 47, 28.5),
+"name": "body",
+"region": Rect2(274, 1027, 94, 57)
+}, {
+"closed": Rect2(370, 1027, 70, 64),
+&"closed_dest": Rect2(-19, -56, 35, 32),
+&"dest": Rect2(-19, -56, 35, 32),
+"name": "flower",
+"region": Rect2(370, 1027, 70, 64)
+}, {
+"closed": Rect2(442, 1027, 138, 124),
+&"closed_dest": Rect2(-34.5, -37.5, 69, 62),
+&"dest": Rect2(-34.5, -37.5, 69, 62),
+"name": "body",
+"region": Rect2(442, 1027, 138, 124)
+}, {
+"closed": Rect2(582, 1027, 114, 34),
+&"closed_dest": Rect2(-30, 25.5, 57, 17),
+&"dest": Rect2(-30, 25.5, 57, 17),
+"name": "soil",
+"region": Rect2(582, 1027, 114, 34)
+}],
+"cherry": [{
+"closed": Rect2(0, 562, 140, 32),
+&"closed_dest": Rect2(-35, 30, 70, 16),
+&"dest": Rect2(-35, 30, 70, 16),
+"name": "shadow",
+"region": Rect2(0, 562, 140, 32)
+}, {
+"closed": Rect2(142, 562, 148, 162),
+&"closed_dest": Rect2(-42, -42, 74, 81),
+&"dest": Rect2(-42, -42, 74, 81),
+"name": "body",
+"region": Rect2(142, 562, 148, 162)
+}, {
+"closed": Rect2(310, 562, 20, 10),
+&"closed_dest": Rect2(-25, 8.5, 10, 5),
+&"dest": Rect2(-24, 5, 8, 12),
+"name": "body/eye",
+"region": Rect2(292, 562, 16, 24)
+}, {
+"closed": Rect2(350, 562, 18, 10),
+&"closed_dest": Rect2(-11.5, 7.5, 9, 5),
+&"dest": Rect2(-11, 4.5, 8, 11),
+"name": "body/eye",
+"region": Rect2(332, 562, 16, 22)
+}, {
+"closed": Rect2(370, 562, 141, 104),
+&"closed_dest": Rect2(-26.5, -10, 70.5, 52),
+&"dest": Rect2(-26.5, -10, 70.5, 52),
+"name": "body",
+"region": Rect2(370, 562, 141, 104)
+}, {
+"closed": Rect2(531, 562, 20, 10),
+&"closed_dest": Rect2(11, 11.5, 10, 5),
+&"dest": Rect2(12, 8, 8, 12),
+"name": "body/eye",
+"region": Rect2(513, 562, 16, 24)
+}, {
+"closed": Rect2(571, 562, 18, 10),
+&"closed_dest": Rect2(24.5, 10.5, 9, 5),
+&"dest": Rect2(25, 7.5, 8, 11),
+"name": "body/eye",
+"region": Rect2(553, 562, 16, 22)
+}, {
+"closed": Rect2(591, 562, 52, 54),
+&"closed_dest": Rect2(9.5, 1, 26, 27),
+&"dest": Rect2(9.5, 1, 26, 27),
+"name": "body",
+"region": Rect2(591, 562, 52, 54)
+}],
+"energy_pea": [{
+"closed": Rect2(388, 270, 124, 32),
+&"closed_dest": Rect2(-31, 31, 62, 16),
+&"dest": Rect2(-31, 31, 62, 16),
+"name": "shadow",
+"region": Rect2(388, 270, 124, 32)
+}, {
+"closed": Rect2(514, 270, 26, 72),
+&"closed_dest": Rect2(-6.5, 4, 13, 36),
+&"dest": Rect2(-6.5, 4, 13, 36),
+"name": "body",
+"region": Rect2(514, 270, 26, 72)
+}, {
+"closed": Rect2(542, 270, 75, 52),
+&"closed_dest": Rect2(-35, 14.5, 37.5, 26),
+&"dest": Rect2(-35, 14.5, 37.5, 26),
+"name": "leaf_left",
+"region": Rect2(542, 270, 75, 52)
+}, {
+"closed": Rect2(619, 270, 73, 52),
+&"closed_dest": Rect2(-2.5, 16, 36.5, 26),
+&"dest": Rect2(-2.5, 16, 36.5, 26),
+"name": "leaf_right",
+"region": Rect2(619, 270, 73, 52)
+}, {
+"closed": Rect2(694, 270, 146, 108),
+&"closed_dest": Rect2(-31, -36, 73, 54),
+&"dest": Rect2(-31, -36, 73, 54),
+"name": "head",
+"region": Rect2(694, 270, 146, 108)
+}, {
+"closed": Rect2(864, 270, 22, 12),
+&"closed_dest": Rect2(-13.5, -17, 11, 6),
+&"dest": Rect2(-13, -21.5, 10, 15),
+"name": "head/eye",
+"region": Rect2(842, 270, 20, 30)
+}, {
+"closed": Rect2(888, 270, 125, 136),
+&"closed_dest": Rect2(-31.5, -43, 62.5, 68),
+&"dest": Rect2(-31.5, -43, 62.5, 68),
+"name": "head",
+"region": Rect2(888, 270, 125, 136)
+}],
+"mine": [{
+"closed": Rect2(392, 408, 140, 32),
+&"closed_dest": Rect2(-35, 30, 70, 16),
+&"dest": Rect2(-35, 30, 70, 16),
+"name": "shadow",
+"region": Rect2(392, 408, 140, 32)
+}, {
+"closed": Rect2(534, 408, 140, 110),
+&"closed_dest": Rect2(-35, -14, 70, 55),
+&"dest": Rect2(-35, -14, 70, 55),
+"name": "body",
+"region": Rect2(534, 408, 140, 110)
+}, {
+"closed": Rect2(696, 408, 20, 10),
+&"closed_dest": Rect2(-10, 7.5, 10, 5),
+&"dest": Rect2(-9.5, 3.5, 9, 13),
+"name": "body/eye",
+"region": Rect2(676, 408, 18, 26)
+}, {
+"closed": Rect2(738, 408, 20, 10),
+&"closed_dest": Rect2(7, 6.5, 10, 5),
+&"dest": Rect2(7.5, 2.5, 9, 13),
+"name": "body/eye",
+"region": Rect2(718, 408, 18, 26)
+}, {
+"closed": Rect2(760, 408, 88, 121),
+&"closed_dest": Rect2(-21.5, -34.5, 44, 60.5),
+&"dest": Rect2(-21.5, -34.5, 44, 60.5),
+"name": "body",
+"region": Rect2(760, 408, 88, 121)
+}, {
+"closed": Rect2(850, 408, 132, 22),
+&"closed_dest": Rect2(-32, 26, 66, 11),
+&"dest": Rect2(-32, 26, 66, 11),
+"name": "body",
+"region": Rect2(850, 408, 132, 22)
+}],
+"mine_hidden": [{
+"closed": Rect2(771, 726, 140, 32),
+&"closed_dest": Rect2(-35, 30, 70, 16),
+&"dest": Rect2(-35, 30, 70, 16),
+"name": "shadow",
+"region": Rect2(771, 726, 140, 32)
+}, {
+"closed": Rect2(0, 869, 140, 85),
+&"closed_dest": Rect2(-35, -1.5, 70, 42.5),
+&"dest": Rect2(-35, -1.5, 70, 42.5),
+"name": "body",
+"region": Rect2(0, 869, 140, 85)
+}, {
+"closed": Rect2(142, 869, 132, 22),
+&"closed_dest": Rect2(-32, 26, 66, 11),
+&"dest": Rect2(-32, 26, 66, 11),
+"name": "body",
+"region": Rect2(142, 869, 132, 22)
+}],
+"needle": [{
+"closed": Rect2(222, 726, 140, 32),
+&"closed_dest": Rect2(-35, 30, 70, 16),
+&"dest": Rect2(-35, 30, 70, 16),
+"name": "shadow",
+"region": Rect2(222, 726, 140, 32)
+}, {
+"closed": Rect2(364, 726, 142, 86),
+&"closed_dest": Rect2(-36, -4, 71, 43),
+&"dest": Rect2(-36, -4, 71, 43),
+"name": "body",
+"region": Rect2(364, 726, 142, 86)
+}, {
+"closed": Rect2(508, 726, 139, 141),
+&"closed_dest": Rect2(-33.5, -44.5, 69.5, 70.5),
+&"dest": Rect2(-33.5, -44.5, 69.5, 70.5),
+"name": "head",
+"region": Rect2(508, 726, 139, 141)
+}, {
+"closed": Rect2(669, 726, 20, 10),
+&"closed_dest": Rect2(-9, -12.5, 10, 5),
+&"dest": Rect2(-8.5, -16.5, 9, 13),
+"name": "head/eye",
+"region": Rect2(649, 726, 18, 26)
+}, {
+"closed": Rect2(709, 726, 20, 10),
+&"closed_dest": Rect2(6, -13.5, 10, 5),
+&"dest": Rect2(7, -17, 8, 12),
+"name": "head/eye",
+"region": Rect2(691, 726, 16, 24)
+}, {
+"closed": Rect2(731, 726, 38, 18),
+&"closed_dest": Rect2(-3, -2, 19, 9),
+&"dest": Rect2(-3, -2, 19, 9),
+"name": "head",
+"region": Rect2(731, 726, 38, 18)
+}],
+"pea": [{
+"closed": Rect2(722, 0, 124, 32),
+&"closed_dest": Rect2(-31, 31, 62, 16),
+&"dest": Rect2(-31, 31, 62, 16),
+"name": "shadow",
+"region": Rect2(722, 0, 124, 32)
+}, {
+"closed": Rect2(848, 0, 26, 72),
+&"closed_dest": Rect2(-6.5, 4, 13, 36),
+&"dest": Rect2(-6.5, 4, 13, 36),
+"name": "body",
+"region": Rect2(848, 0, 26, 72)
+}, {
+"closed": Rect2(876, 0, 75, 52),
+&"closed_dest": Rect2(-35, 14.5, 37.5, 26),
+&"dest": Rect2(-35, 14.5, 37.5, 26),
+"name": "leaf_left",
+"region": Rect2(876, 0, 75, 52)
+}, {
+"closed": Rect2(0, 160, 73, 52),
+&"closed_dest": Rect2(-2.5, 16, 36.5, 26),
+&"dest": Rect2(-2.5, 16, 36.5, 26),
+"name": "leaf_right",
+"region": Rect2(0, 160, 73, 52)
+}, {
+"closed": Rect2(75, 160, 146, 108),
+&"closed_dest": Rect2(-31, -36, 73, 54),
+&"dest": Rect2(-31, -36, 73, 54),
+"name": "head",
+"region": Rect2(75, 160, 146, 108)
+}, {
+"closed": Rect2(245, 160, 22, 12),
+&"closed_dest": Rect2(-13.5, -17, 11, 6),
+&"dest": Rect2(-13, -21.5, 10, 15),
+"name": "head/eye",
+"region": Rect2(223, 160, 20, 30)
+}, {
+"closed": Rect2(269, 160, 39, 42),
+&"closed_dest": Rect2(-31.5, -41, 19.5, 21),
+&"dest": Rect2(-31.5, -41, 19.5, 21),
+"name": "head",
+"region": Rect2(269, 160, 39, 42)
+}],
+"pumpkin_back": [{
+"closed": Rect2(0, 1511, 200, 32),
+&"closed_dest": Rect2(-50, 36, 100, 16),
+&"dest": Rect2(-50, 36, 100, 16),
+"name": "shadow",
+"region": Rect2(0, 1511, 200, 32)
+}, {
+"closed": Rect2(202, 1511, 200, 133),
+&"closed_dest": Rect2(-50, -15.5, 100, 66.5),
+&"dest": Rect2(-50, -15.5, 100, 66.5),
+"name": "body",
+"region": Rect2(202, 1511, 200, 133)
+}, {
+"closed": Rect2(404, 1511, 34, 43),
+&"closed_dest": Rect2(-35.5, -16, 17, 21.5),
+&"dest": Rect2(-35.5, -16, 17, 21.5),
+"name": "pumpkin_leaf",
+"region": Rect2(404, 1511, 34, 43)
+}],
+"pumpkin_front": [{
+"closed": Rect2(440, 1511, 200, 88),
+&"closed_dest": Rect2(-50, 6, 100, 44),
+&"dest": Rect2(-50, 6, 100, 44),
+"name": "body",
+"region": Rect2(440, 1511, 200, 88)
+}],
+"short_pea": [{
+"closed": Rect2(885, 160, 124, 32),
+&"closed_dest": Rect2(-31, 31, 62, 16),
+&"dest": Rect2(-31, 31, 62, 16),
+"name": "shadow",
+"region": Rect2(885, 160, 124, 32)
+}, {
+"closed": Rect2(0, 270, 75, 45),
+&"closed_dest": Rect2(-35, 20.5, 37.5, 22.5),
+&"dest": Rect2(-35, 20.5, 37.5, 22.5),
+"name": "leaf_left",
+"region": Rect2(0, 270, 75, 45)
+}, {
+"closed": Rect2(77, 270, 74, 46),
+&"closed_dest": Rect2(-2.5, 22, 37, 23),
+&"dest": Rect2(-2.5, 22, 37, 23),
+"name": "leaf_right",
+"region": Rect2(77, 270, 74, 46)
+}, {
+"closed": Rect2(153, 270, 146, 108),
+&"closed_dest": Rect2(-31, -19, 73, 54),
+&"dest": Rect2(-31, -19, 73, 54),
+"name": "head",
+"region": Rect2(153, 270, 146, 108)
+}, {
+"closed": Rect2(323, 270, 22, 12),
+&"closed_dest": Rect2(-13.5, 0, 11, 6),
+&"dest": Rect2(-13, -4.5, 10, 15),
+"name": "head/eye",
+"region": Rect2(301, 270, 20, 30)
+}, {
+"closed": Rect2(347, 270, 39, 42),
+&"closed_dest": Rect2(-31.5, -24, 19.5, 21),
+&"dest": Rect2(-31.5, -24, 19.5, 21),
+"name": "head",
+"region": Rect2(347, 270, 39, 42)
+}],
+"sky_pepper": [{
+"closed": Rect2(404, 1673, 140, 28),
+&"closed_dest": Rect2(-35, 33, 70, 14),
+&"dest": Rect2(-35, 33, 70, 14),
+"name": "shadow",
+"region": Rect2(404, 1673, 140, 28)
+}, {
+"closed": Rect2(546, 1673, 75, 52),
+&"closed_dest": Rect2(-35, 16.5, 37.5, 26),
+&"dest": Rect2(-35, 16.5, 37.5, 26),
+"name": "leaf_left",
+"region": Rect2(546, 1673, 75, 52)
+}, {
+"closed": Rect2(623, 1673, 75, 54),
+&"closed_dest": Rect2(-2.5, 16, 37.5, 27),
+&"dest": Rect2(-2.5, 16, 37.5, 27),
+"name": "leaf_right",
+"region": Rect2(623, 1673, 75, 54)
+}, {
+"closed": Rect2(700, 1673, 25, 46),
+&"closed_dest": Rect2(-5, 17.5, 12.5, 23),
+&"dest": Rect2(-5, 17.5, 12.5, 23),
+"name": "body",
+"region": Rect2(700, 1673, 25, 46)
+}, {
+"closed": Rect2(727, 1673, 103, 163),
+&"closed_dest": Rect2(-25, -49, 51.5, 81.5),
+&"dest": Rect2(-25, -49, 51.5, 81.5),
+"name": "head",
+"region": Rect2(727, 1673, 103, 163)
+}, {
+"closed": Rect2(852, 1673, 22, 12),
+&"closed_dest": Rect2(-9.5, 2, 11, 6),
+&"dest": Rect2(-8.5, -1.5, 9, 13),
+"name": "head/eye",
+"region": Rect2(832, 1673, 18, 26)
+}, {
+"closed": Rect2(894, 1673, 20, 10),
+&"closed_dest": Rect2(6, 1.5, 10, 5),
+&"dest": Rect2(7, -2, 8, 12),
+"name": "head/eye",
+"region": Rect2(876, 1673, 16, 24)
+}, {
+"closed": Rect2(916, 1673, 82, 50),
+&"closed_dest": Rect2(-19, 10, 41, 25),
+&"dest": Rect2(-19, 10, 41, 25),
+"name": "head",
+"region": Rect2(916, 1673, 82, 50)
+}],
+"slime": [{
+"closed": Rect2(698, 1027, 144, 32),
+&"closed_dest": Rect2(-36, 32, 72, 16),
+&"dest": Rect2(-36, 32, 72, 16),
+"name": "shadow",
+"region": Rect2(698, 1027, 144, 32)
+}, {
+"closed": Rect2(844, 1027, 89, 57),
+&"closed_dest": Rect2(-41.5, 3, 44.5, 28.5),
+&"dest": Rect2(-41.5, 3, 44.5, 28.5),
+"name": "succulent_back_0",
+"region": Rect2(844, 1027, 89, 57)
+}, {
+"closed": Rect2(935, 1027, 71, 88),
+&"closed_dest": Rect2(-32.5, -17, 35.5, 44),
+&"dest": Rect2(-32.5, -17, 35.5, 44),
+"name": "succulent_back_1",
+"region": Rect2(935, 1027, 71, 88)
+}, {
+"closed": Rect2(0, 1195, 54, 107),
+&"closed_dest": Rect2(-13.5, -26.5, 27, 53.5),
+&"dest": Rect2(-13.5, -26.5, 27, 53.5),
+"name": "succulent_back_2",
+"region": Rect2(0, 1195, 54, 107)
+}, {
+"closed": Rect2(56, 1195, 71, 88),
+&"closed_dest": Rect2(-3, -17, 35.5, 44),
+&"dest": Rect2(-3, -17, 35.5, 44),
+"name": "succulent_back_3",
+"region": Rect2(56, 1195, 71, 88)
+}, {
+"closed": Rect2(129, 1195, 89, 57),
+&"closed_dest": Rect2(-3, 3, 44.5, 28.5),
+&"dest": Rect2(-3, 3, 44.5, 28.5),
+"name": "succulent_back_4",
+"region": Rect2(129, 1195, 89, 57)
+}, {
+"closed": Rect2(220, 1195, 108, 124),
+&"closed_dest": Rect2(-27, -28, 54, 62),
+&"dest": Rect2(-27, -28, 54, 62),
+"name": "body",
+"region": Rect2(220, 1195, 108, 124)
+}, {
+"closed": Rect2(350, 1195, 20, 10),
+&"closed_dest": Rect2(-8, -0.5, 10, 5),
+&"dest": Rect2(-7.5, -4.5, 9, 13),
+"name": "body/eye",
+"region": Rect2(330, 1195, 18, 26)
+}, {
+"closed": Rect2(390, 1195, 20, 10),
+&"closed_dest": Rect2(7, -1.5, 10, 5),
+&"dest": Rect2(8, -5, 8, 12),
+"name": "body/eye",
+"region": Rect2(372, 1195, 16, 24)
+}, {
+"closed": Rect2(412, 1195, 36, 17),
+&"closed_dest": Rect2(-3, 10, 18, 8.5),
+&"dest": Rect2(-3, 10, 18, 8.5),
+"name": "body",
+"region": Rect2(412, 1195, 36, 17)
+}, {
+"closed": Rect2(450, 1195, 85, 55),
+&"closed_dest": Rect2(-3, 7.5, 42.5, 27.5),
+&"dest": Rect2(-3, 7.5, 42.5, 27.5),
+"name": "succulent_front_0",
+"region": Rect2(450, 1195, 85, 55)
+}, {
+"closed": Rect2(537, 1195, 64, 58),
+&"closed_dest": Rect2(-2.5, 14.5, 32, 29),
+&"dest": Rect2(-2.5, 14.5, 32, 29),
+"name": "succulent_front_1",
+"region": Rect2(537, 1195, 64, 58)
+}, {
+"closed": Rect2(603, 1195, 54, 58),
+&"closed_dest": Rect2(-13.5, 16.5, 27, 29),
+&"dest": Rect2(-13.5, 16.5, 27, 29),
+"name": "succulent_front_2",
+"region": Rect2(603, 1195, 54, 58)
+}, {
+"closed": Rect2(659, 1195, 64, 58),
+&"closed_dest": Rect2(-29.5, 14.5, 32, 29),
+&"dest": Rect2(-29.5, 14.5, 32, 29),
+"name": "succulent_front_3",
+"region": Rect2(659, 1195, 64, 58)
+}, {
+"closed": Rect2(725, 1195, 85, 55),
+&"closed_dest": Rect2(-39.5, 7.5, 42.5, 27.5),
+&"dest": Rect2(-39.5, 7.5, 42.5, 27.5),
+"name": "succulent_front_4",
+"region": Rect2(725, 1195, 85, 55)
+}, {
+"closed": Rect2(812, 1195, 22, 40),
+&"closed_dest": Rect2(25, 21, 11, 20),
+&"dest": Rect2(25, 21, 11, 20),
+"name": "droplet",
+"region": Rect2(812, 1195, 22, 40)
+}],
+"snow": [{
+"closed": Rect2(310, 160, 124, 32),
+&"closed_dest": Rect2(-31, 31, 62, 16),
+&"dest": Rect2(-31, 31, 62, 16),
+"name": "shadow",
+"region": Rect2(310, 160, 124, 32)
+}, {
+"closed": Rect2(436, 160, 26, 72),
+&"closed_dest": Rect2(-6.5, 4, 13, 36),
+&"dest": Rect2(-6.5, 4, 13, 36),
+"name": "body",
+"region": Rect2(436, 160, 26, 72)
+}, {
+"closed": Rect2(464, 160, 75, 52),
+&"closed_dest": Rect2(-35, 14.5, 37.5, 26),
+&"dest": Rect2(-35, 14.5, 37.5, 26),
+"name": "leaf_left",
+"region": Rect2(464, 160, 75, 52)
+}, {
+"closed": Rect2(541, 160, 73, 52),
+&"closed_dest": Rect2(-2.5, 16, 36.5, 26),
+&"dest": Rect2(-2.5, 16, 36.5, 26),
+"name": "leaf_right",
+"region": Rect2(541, 160, 73, 52)
+}, {
+"closed": Rect2(616, 160, 146, 108),
+&"closed_dest": Rect2(-31, -36, 73, 54),
+&"dest": Rect2(-31, -36, 73, 54),
+"name": "head",
+"region": Rect2(616, 160, 146, 108)
+}, {
+"closed": Rect2(786, 160, 22, 12),
+&"closed_dest": Rect2(-13.5, -17, 11, 6),
+&"dest": Rect2(-13, -21.5, 10, 15),
+"name": "head/eye",
+"region": Rect2(764, 160, 20, 30)
+}, {
+"closed": Rect2(810, 160, 73, 65),
+&"closed_dest": Rect2(-29.5, -57.5, 36.5, 32.5),
+&"dest": Rect2(-29.5, -57.5, 36.5, 32.5),
+"name": "head",
+"region": Rect2(810, 160, 73, 65)
+}],
+"squash": [{
+"closed": Rect2(836, 1195, 144, 32),
+&"closed_dest": Rect2(-36, 32, 72, 16),
+&"dest": Rect2(-36, 32, 72, 16),
+"name": "shadow",
+"region": Rect2(836, 1195, 144, 32)
+}, {
+"closed": Rect2(0, 1321, 160, 188),
+&"closed_dest": Rect2(-40, -53, 80, 94),
+&"dest": Rect2(-40, -53, 80, 94),
+"name": "body",
+"region": Rect2(0, 1321, 160, 188)
+}, {
+"closed": Rect2(178, 1321, 16, 10),
+&"closed_dest": Rect2(-8, -8.5, 8, 5),
+&"dest": Rect2(-7.5, -11, 7, 10),
+"name": "body/eye",
+"region": Rect2(162, 1321, 14, 20)
+}, {
+"closed": Rect2(212, 1321, 16, 10),
+&"closed_dest": Rect2(12, -9.5, 8, 5),
+&"dest": Rect2(12.5, -12, 7, 10),
+"name": "body/eye",
+"region": Rect2(196, 1321, 14, 20)
+}, {
+"closed": Rect2(230, 1321, 102, 94),
+&"closed_dest": Rect2(-23.5, -24.5, 51, 47),
+&"dest": Rect2(-23.5, -24.5, 51, 47),
+"name": "body",
+"region": Rect2(230, 1321, 102, 94)
+}],
+"sunflower": [{
+"closed": Rect2(0, 0, 124, 32),
+&"closed_dest": Rect2(-31, 31, 62, 16),
+&"dest": Rect2(-31, 31, 62, 16),
+"name": "shadow",
+"region": Rect2(0, 0, 124, 32)
+}, {
+"closed": Rect2(126, 0, 26, 72),
+&"closed_dest": Rect2(-6.5, 4, 13, 36),
+&"dest": Rect2(-6.5, 4, 13, 36),
+"name": "body",
+"region": Rect2(126, 0, 26, 72)
+}, {
+"closed": Rect2(154, 0, 75, 52),
+&"closed_dest": Rect2(-35, 14.5, 37.5, 26),
+&"dest": Rect2(-35, 14.5, 37.5, 26),
+"name": "leaf_left",
+"region": Rect2(154, 0, 75, 52)
+}, {
+"closed": Rect2(231, 0, 73, 52),
+&"closed_dest": Rect2(-2.5, 16, 36.5, 26),
+&"dest": Rect2(-2.5, 16, 36.5, 26),
+"name": "leaf_right",
+"region": Rect2(231, 0, 73, 52)
+}, {
+"closed": Rect2(306, 0, 150, 158),
+&"closed_dest": Rect2(-37.5, -46.5, 75, 79),
+&"dest": Rect2(-37.5, -46.5, 75, 79),
+"name": "petals",
+"region": Rect2(306, 0, 150, 158)
+}, {
+"closed": Rect2(458, 0, 100, 104),
+&"closed_dest": Rect2(-25, -33, 50, 52),
+&"dest": Rect2(-25, -33, 50, 52),
+"name": "head",
+"region": Rect2(458, 0, 100, 104)
+}, {
+"closed": Rect2(580, 0, 20, 10),
+&"closed_dest": Rect2(-13, -11.5, 10, 5),
+&"dest": Rect2(-12.5, -15.5, 9, 13),
+"name": "head/eye",
+"region": Rect2(560, 0, 18, 26)
+}, {
+"closed": Rect2(622, 0, 20, 10),
+&"closed_dest": Rect2(3, -11.5, 10, 5),
+&"dest": Rect2(3.5, -15.5, 9, 13),
+"name": "head/eye",
+"region": Rect2(602, 0, 18, 26)
+}, {
+"closed": Rect2(644, 0, 76, 23),
+&"closed_dest": Rect2(-19, -3, 38, 11.5),
+&"dest": Rect2(-19, -3, 38, 11.5),
+"name": "head",
+"region": Rect2(644, 0, 76, 23)
+}],
+"wall": [{
+"closed": Rect2(0, 408, 124, 32),
+&"closed_dest": Rect2(-31, 31, 62, 16),
+&"dest": Rect2(-31, 31, 62, 16),
+"name": "shadow",
+"region": Rect2(0, 408, 124, 32)
+}, {
+"closed": Rect2(126, 408, 140, 152),
+&"closed_dest": Rect2(-35, -35, 70, 76),
+&"dest": Rect2(-35, -35, 70, 76),
+"name": "body",
+"region": Rect2(126, 408, 140, 152)
+}, {
+"closed": Rect2(290, 408, 22, 12),
+&"closed_dest": Rect2(-2.5, -6, 11, 6),
+&"dest": Rect2(-2, -10.5, 10, 15),
+"name": "body/eye",
+"region": Rect2(268, 408, 20, 30)
+}, {
+"closed": Rect2(332, 408, 20, 10),
+&"closed_dest": Rect2(16, -6.5, 10, 5),
+&"dest": Rect2(17, -10, 8, 12),
+"name": "body/eye",
+"region": Rect2(314, 408, 16, 24)
+}, {
+"closed": Rect2(354, 408, 36, 20),
+&"closed_dest": Rect2(5, 8.5, 18, 10),
+&"dest": Rect2(5, 8.5, 18, 10),
+"name": "body",
+"region": Rect2(354, 408, 36, 20)
+}],
+"wind_grass": [{
+"closed": Rect2(642, 1511, 140, 28),
+&"closed_dest": Rect2(-35, 33, 70, 14),
+&"dest": Rect2(-35, 33, 70, 14),
+"name": "shadow",
+"region": Rect2(642, 1511, 140, 28)
+}, {
+"closed": Rect2(784, 1511, 44, 122),
+&"closed_dest": Rect2(-32, -22.5, 22, 61),
+&"dest": Rect2(-32, -22.5, 22, 61),
+"name": "wind_leaf_0",
+"region": Rect2(784, 1511, 44, 122)
+}, {
+"closed": Rect2(830, 1511, 68, 114),
+&"closed_dest": Rect2(10, -17.5, 34, 57),
+&"dest": Rect2(10, -17.5, 34, 57),
+"name": "wind_leaf_1",
+"region": Rect2(830, 1511, 68, 114)
+}, {
+"closed": Rect2(900, 1511, 41, 160),
+&"closed_dest": Rect2(-22, -42.5, 20.5, 80),
+&"dest": Rect2(-22, -42.5, 20.5, 80),
+"name": "wind_leaf_2",
+"region": Rect2(900, 1511, 41, 160)
+}, {
+"closed": Rect2(943, 1511, 55, 158),
+&"closed_dest": Rect2(1.5, -40, 27.5, 79),
+&"dest": Rect2(1.5, -40, 27.5, 79),
+"name": "wind_leaf_3",
+"region": Rect2(943, 1511, 55, 158)
+}, {
+"closed": Rect2(0, 1673, 89, 182),
+&"closed_dest": Rect2(-22, -49, 44.5, 91),
+&"dest": Rect2(-22, -49, 44.5, 91),
+"name": "body",
+"region": Rect2(0, 1673, 89, 182)
+}, {
+"closed": Rect2(111, 1673, 20, 10),
+&"closed_dest": Rect2(-9, 3.5, 10, 5),
+&"dest": Rect2(-8.5, 0, 9, 12),
+"name": "body/eye",
+"region": Rect2(91, 1673, 18, 24)
+}, {
+"closed": Rect2(151, 1673, 20, 10),
+&"closed_dest": Rect2(5, 2.5, 10, 5),
+&"dest": Rect2(6, -1, 8, 12),
+"name": "body/eye",
+"region": Rect2(133, 1673, 16, 24)
+}, {
+"closed": Rect2(173, 1673, 63, 59),
+&"closed_dest": Rect2(-12.5, -8, 31.5, 29.5),
+&"dest": Rect2(-12.5, -8, 31.5, 29.5),
+"name": "body",
+"region": Rect2(173, 1673, 63, 59)
+}, {
+"closed": Rect2(238, 1673, 164, 65),
+&"closed_dest": Rect2(-40, 11, 82, 32.5),
+&"dest": Rect2(-40, 11, 82, 32.5),
+"name": "wind_base",
+"region": Rect2(238, 1673, 164, 65)
+}],
+"yam_guard": [{
+"closed": Rect2(645, 562, 140, 32),
+&"closed_dest": Rect2(-35, 30, 70, 16),
+&"dest": Rect2(-35, 30, 70, 16),
+"name": "shadow",
+"region": Rect2(645, 562, 140, 32)
+}, {
+"closed": Rect2(787, 562, 112, 156),
+&"closed_dest": Rect2(-28, -39, 56, 78),
+&"dest": Rect2(-28, -39, 56, 78),
+"name": "body",
+"region": Rect2(787, 562, 112, 156)
+}, {
+"closed": Rect2(901, 562, 50, 45),
+&"closed_dest": Rect2(-25, -40, 25, 22.5),
+&"dest": Rect2(-25, -40, 25, 22.5),
+"name": "yam_leaf_left",
+"region": Rect2(901, 562, 50, 45)
+}, {
+"closed": Rect2(953, 562, 50, 44),
+&"closed_dest": Rect2(-3, -42, 25, 22),
+&"dest": Rect2(-3, -42, 25, 22),
+"name": "yam_leaf_right",
+"region": Rect2(953, 562, 50, 44)
+}, {
+"closed": Rect2(0, 726, 22, 12),
+&"closed_dest": Rect2(-4.5, -6, 11, 6),
+&"dest": Rect2(-3.5, -9.5, 9, 13),
+"name": "body/eye",
+"region": Rect2(1005, 562, 18, 26)
+}, {
+"closed": Rect2(42, 726, 20, 10),
+&"closed_dest": Rect2(11, -6.5, 10, 5),
+&"dest": Rect2(12, -10, 8, 12),
+"name": "body/eye",
+"region": Rect2(24, 726, 16, 24)
+}, {
+"closed": Rect2(64, 726, 156, 118),
+&"closed_dest": Rect2(-39.5, -17, 78, 59),
+&"dest": Rect2(-39.5, -17, 78, 59),
+"name": "body",
+"region": Rect2(64, 726, 156, 118)
+}],
+"yam_minion": [{
+"closed": Rect2(276, 869, 140, 32),
+&"closed_dest": Rect2(-35, 30, 70, 16),
+&"dest": Rect2(-35, 30, 70, 16),
+"name": "shadow",
+"region": Rect2(276, 869, 140, 32)
+}, {
+"closed": Rect2(418, 869, 112, 156),
+&"closed_dest": Rect2(-28, -39, 56, 78),
+&"dest": Rect2(-28, -39, 56, 78),
+"name": "body",
+"region": Rect2(418, 869, 112, 156)
+}, {
+"closed": Rect2(532, 869, 50, 45),
+&"closed_dest": Rect2(-25, -40, 25, 22.5),
+&"dest": Rect2(-25, -40, 25, 22.5),
+"name": "yam_leaf_left",
+"region": Rect2(532, 869, 50, 45)
+}, {
+"closed": Rect2(584, 869, 50, 44),
+&"closed_dest": Rect2(-3, -42, 25, 22),
+&"dest": Rect2(-3, -42, 25, 22),
+"name": "yam_leaf_right",
+"region": Rect2(584, 869, 50, 44)
+}, {
+"closed": Rect2(656, 869, 22, 12),
+&"closed_dest": Rect2(-4.5, -6, 11, 6),
+&"dest": Rect2(-3.5, -9.5, 9, 13),
+"name": "body/eye",
+"region": Rect2(636, 869, 18, 26)
+}, {
+"closed": Rect2(698, 869, 20, 10),
+&"closed_dest": Rect2(11, -6.5, 10, 5),
+&"dest": Rect2(12, -10, 8, 12),
+"name": "body/eye",
+"region": Rect2(680, 869, 16, 24)
+}, {
+"closed": Rect2(720, 869, 96, 114),
+&"closed_dest": Rect2(-24, -17, 48, 57),
+&"dest": Rect2(-24, -17, 48, 57),
+"name": "body",
+"region": Rect2(720, 869, 96, 114)
+}, {
+"closed": Rect2(818, 869, 48, 67),
+&"closed_dest": Rect2(19, 1, 24, 33.5),
+&"dest": Rect2(19, 1, 24, 33.5),
+"name": "shield",
+"region": Rect2(818, 869, 48, 67)
+}]
+}
