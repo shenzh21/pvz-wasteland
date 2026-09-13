@@ -246,6 +246,7 @@ func draw_title_screen() -> void:
 	draw_string(ThemeDB.fallback_font,Vector2(0,602),"冒险进度：%s" % level_title(unlocked_level),HORIZONTAL_ALIGNMENT_CENTER,1280,19,Color("#d7e49b"))
 	draw_string(ThemeDB.fallback_font,Vector2(0,640),"所有画面与特效均由代码实时绘制",HORIZONTAL_ALIGNMENT_CENTER,1280,18,Color("#829b8d"))
 	draw_string(ThemeDB.fallback_font,Vector2(0,674),"1 2 3 4 Q W E R 选择植物  •  A / S 道具  •  D 铲子  •  P / Esc 暂停",HORIZONTAL_ALIGNMENT_CENTER,1280,16,Color("#66847a"))
+	draw_string(ThemeDB.fallback_font,Vector2(1016,704),"核弹头兵子制作",HORIZONTAL_ALIGNMENT_RIGHT,240,18,Color("#b8c9a5"))
 
 func draw_shop_screen() -> void:
 	draw_rect(Rect2(0,0,W,H),Color("#243a35"))

@@ -56,6 +56,8 @@ const PIVOTS := {
 	"jaw": Vector2(121,124),
 }
 const ORDER := ["far_thigh","far_calf","far_shoe","near_thigh","near_calf","near_shoe","far_upper_arm","far_forearm","torso","tie","near_upper_arm","near_forearm","neck","head","jaw"]
+# 巨人近侧左臂抬起投掷时应遮住头部，而不是被脸截断；远侧持棒臂仍在后层。
+const GIANT_ORDER := ["far_thigh","far_calf","far_shoe","near_thigh","near_calf","near_shoe","far_upper_arm","far_forearm","torso","neck","head","jaw","near_upper_arm","near_forearm"]
 
 static func turn_part(id: String, angle: float) -> Transform2D:
 	var pivot: Vector2 = PIVOTS[id]
@@ -133,7 +135,7 @@ static func draw(view: Node2D, z: Dictionary, pos: Vector2, size: float, parent:
 	var flag: bool = z.get("kind", "normal")=="flag"
 	var basketball_uniform: bool = z.get("kind", "")=="basket"
 	var giant: bool = z.get("kind","")=="giant"
-	for id in ORDER:
+	for id in GIANT_ORDER if giant else ORDER:
 		if basketball_uniform and id=="tie": continue
 		if giant and id=="tie": continue
 		if lost and id in ["near_upper_arm","near_forearm"]: continue
